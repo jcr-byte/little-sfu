@@ -1,8 +1,8 @@
 # Roadmap
 
-This schedule assumes one developer working roughly 10–12 hours per week, starting
-August 24, 2026. Dates are targets, not promises. Each release includes a one-week
-stabilization buffer; if work slips, reduce scope before moving the date.
+This schedule assumes one developer working roughly 18–20 hours per week, starting
+August 24, 2026. Dates are targets, not promises. Stabilization is included in each
+release window; if work slips, reduce scope before moving the date.
 
 ## Release schedule
 
@@ -11,17 +11,15 @@ stabilization buffer; if work slips, reduce scope before moving the date.
 | Aug 30, 2026 | Project skeleton | A Go server builds, runs, and serves the browser demo. |
 | Sep 6, 2026 | Publisher connection | A browser can publish audio and video; the server logs both incoming tracks. |
 | Sep 13, 2026 | First end-to-end broadcast | One viewer can receive a publisher's audio and video through the SFU. |
-| Sep 20, 2026 | Multi-viewer and rooms | Multiple viewers can watch, and independent rooms do not interfere. |
-| Sep 27, 2026 | Lifecycle and cleanup | Disconnects clean up peer connections, rooms, tracks, and goroutines. |
-| Oct 4, 2026 | **v0.1.0: broadcast** | The scoped broadcast server is tested, documented, and tagged. |
-| Nov 15, 2026 | **v0.2.0: conferencing** | Multiple participants can publish and subscribe in one room. |
-| Dec 27, 2026 | **v0.3.0: network resilience** | Late joins recover quickly and common packet loss is handled. |
-| Feb 7, 2027 | **v0.4.0: adaptive quality** | Simulcast publishers and per-viewer layer selection work. |
-| Mar 14, 2027 | **v0.5.0: congestion control** | The server adapts and paces traffic under constrained bandwidth. |
+| Sep 20, 2026 | **v0.1.0: broadcast** | Multi-viewer rooms, lifecycle cleanup, tests, and documentation are complete. |
+| Oct 11, 2026 | **v0.2.0: conferencing** | Multiple participants can publish and subscribe in one room. |
+| Nov 1, 2026 | **v0.3.0: network resilience** | Late joins recover quickly and common packet loss is handled. |
+| Nov 22, 2026 | **v0.4.0: adaptive quality** | Simulcast publishers and per-viewer layer selection work. |
+| Dec 13, 2026 | **v0.5.0: congestion control** | The server adapts and paces traffic under constrained bandwidth. |
 
 ## v0.1 — Broadcast
 
-Target: October 4, 2026
+Target: September 20, 2026
 
 Scope:
 
@@ -48,7 +46,7 @@ estimation, authentication, persistence, or recording.
 
 ## v0.2 — Conferencing
 
-Target: November 15, 2026
+Target: October 11, 2026
 
 Scope:
 
@@ -62,7 +60,7 @@ and independently join, leave, and reconnect during a 30-minute test.
 
 ## v0.3 — Network resilience
 
-Target: December 27, 2026
+Target: November 1, 2026
 
 Scope:
 
@@ -76,7 +74,7 @@ loss test shows recovery from moderate packet loss without restarting a session.
 
 ## v0.4 — Adaptive quality
 
-Target: February 7, 2027
+Target: November 22, 2026
 
 Scope:
 
@@ -90,7 +88,7 @@ switch layers without reconnecting.
 
 ## v0.5 — Congestion control
 
-Target: March 14, 2027
+Target: December 13, 2026
 
 Scope:
 

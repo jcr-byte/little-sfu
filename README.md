@@ -3,7 +3,7 @@
 A small selective forwarding unit built from scratch with
 [Pion WebRTC](https://github.com/pion/webrtc). This project is intended to teach
 WebRTC signaling, RTP/RTCP forwarding, media negotiation, and peer lifecycle
-management—not to become a production conferencing platform.
+management.
 
 The first release will let one publisher send audio and video into a room while
 multiple viewers watch in the browser with sub-second latency. The server will
@@ -24,7 +24,7 @@ documented, but the server has not been implemented yet.
 - [ ] Add a temporary periodic PLI for late viewers
 - [ ] Test, document, and tag v0.1.0
 
-The target date for v0.1.0 is **October 4, 2026**.
+The target date for v0.1.0 is **September 20, 2026**.
 
 ## Learning objectives
 
