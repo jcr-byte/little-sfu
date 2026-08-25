@@ -8,5 +8,49 @@
   <body>
     <h1>Little SFU</h1>
     <p>The server is running.</p>
+
+    <button id="publish">Publish</button>
+
+    <script>
+      function waitForIceGathering(peerConnection) {
+        if (peerConnection.iceGatheringState === "complete") {
+          return Promise.resolve();
+        }
+
+        return new Promise((resolve) => {
+          function handleStateChange() {
+            if (peerConnection.iceGatheringState === "complete") {
+              peerConnection.removeEventListener(
+                "icegatheringstatechange",
+                handleStateChange,
+              );
+
+              resolve();
+            }
+          }
+
+          peerConnection.addEventListener("icegatheringstatechange", handleStateChange);
+        });
+      }
+
+      document.querySelector("#publish").addEventListener("click", async () => {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: true,
+          video: true,
+        });
+
+        const peerConnection = new RTCPeerConnection();
+
+        for (const track of stream.getTracks()) {
+          peerConnection.addTrack(track, stream);
+        }
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        await waitForIceGathering(peerConnection);
+
+        console.log(peerConnection.localDescription);
+      });
+    </script>
   </body>
 </html>

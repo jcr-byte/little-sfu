@@ -16,10 +16,8 @@ func main() {
 	})
 
 	log.Println("Little SFU listening on http://localhost:8080")
-	
+
 	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatal(err)	
+		log.Fatal(err)
 	}
 }
-
-
