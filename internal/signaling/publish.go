@@ -1,0 +1,120 @@
+package signaling
+
+import (
+	"encoding/json"
+	"errors"
+	"io"
+	"mime"
+	"net/http"
+	"strings"
+)
+
+type publishRequest struct {
+	SDP  string `json:"sdp"`
+	Type string `json:"type"`
+}
+
+func PublishHandler(w http.ResponseWriter, r *http.Request) {
+	// validate the request method is POST
+	if r.Method != http.MethodPost {
+		w.Header().Set("Allow", http.MethodPost)
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// validate room id
+	roomID := r.PathValue("room")
+
+	if len(roomID) < 1 || len(roomID) > 64 {
+		http.Error(
+			w,
+			"invalid room ID",
+			http.StatusBadRequest,
+		)
+		return
+	}
+
+	for _, char := range roomID {
+		isAllowed :=
+			('a' <= char && char <= 'z') ||
+				('A' <= char && char <= 'Z') ||
+				('0' <= char && char <= '9') ||
+				char == '-' ||
+				char == '_'
+
+		if !isAllowed {
+			http.Error(
+				w,
+				"invalid room ID",
+				http.StatusBadRequest,
+			)
+			return
+		}
+	}
+
+	// validate content type is application/json
+	headerMediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil {
+		http.Error(
+			w,
+			"Content-Type must be application/json",
+			http.StatusUnsupportedMediaType,
+		)
+		return
+	}
+
+	if headerMediaType != "application/json" {
+		http.Error(
+			w,
+			"Content-Type must be application/json",
+			http.StatusUnsupportedMediaType,
+		)
+		return
+	}
+
+	// limit the request body size
+	const maxBodyBytes = 64 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
+	decoder := json.NewDecoder(r.Body)
+
+	var offer publishRequest
+	err = decoder.Decode(&offer)
+	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+
+	}
+
+	// ensure the body contains exactly one JSON value
+	err = decoder.Decode(&struct{}{})
+	if err != io.EOF {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		http.Error(w, "request body must contain exactly one JSON object", http.StatusBadRequest)
+		return
+	}
+
+	// validate SDP
+	if strings.TrimSpace(offer.SDP) == "" {
+		http.Error(w, "SDP must not be empty", http.StatusBadRequest)
+		return
+	}
+
+	// validate offer type
+	if offer.Type != "offer" {
+		http.Error(w, `type must be "offer"`, http.StatusBadRequest)
+		return
+	}
+}
