@@ -156,6 +156,30 @@ func TestPublishHandlerRejectsInvalidOffer(t *testing.T) {
 	}
 }
 
+func TestPublishHandlerRejectsOccupiedRoom(t *testing.T) {
+	server := NewServer()
+	original, reserved := server.reserveRoom("test-room")
+	if !reserved {
+		t.Fatal("expected initial room reservation to succeed")
+	}
+
+	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	assertResponse(t, response, http.StatusConflict, "room already has a publisher\n")
+
+	found, ok := server.findRoom("test-room")
+	if !ok {
+		t.Fatal("expected original room to remain registered")
+	}
+
+	if found != original {
+		t.Error("expected conflict to preserve the original room")
+	}
+}
+
 func newPublishRequest(roomID, body string) *http.Request {
 	request := httptest.NewRequest(http.MethodPost, "/publish/test-room", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
