@@ -11,7 +11,7 @@ func TestPublishHandlerRejectsNonPOSTMethod(t *testing.T) {
 	request := httptest.NewRequest(http.MethodGet, "/publish/test-room", nil)
 	response := httptest.NewRecorder()
 
-	PublishHandler(response, request)
+	NewServer().PublishHandler(response, request)
 
 	if response.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status %d, got %d", http.StatusMethodNotAllowed, response.Code)
@@ -38,7 +38,7 @@ func TestPublishHandlerRejectsInvalidRoomID(t *testing.T) {
 			request := newPublishRequest(test.roomID, `{"sdp":"offer-sdp","type":"offer"}`)
 			response := httptest.NewRecorder()
 
-			PublishHandler(response, request)
+			NewServer().PublishHandler(response, request)
 
 			assertResponse(t, response, http.StatusBadRequest, "invalid room ID\n")
 		})
@@ -57,7 +57,7 @@ func TestPublishHandlerAcceptsValidRoomIDs(t *testing.T) {
 			request := newPublishRequest(roomID, `{"sdp":"offer-sdp","type":"offer"}`)
 			response := httptest.NewRecorder()
 
-			PublishHandler(response, request)
+			NewServer().PublishHandler(response, request)
 
 			assertResponse(t, response, http.StatusOK, "")
 		})
@@ -83,7 +83,7 @@ func TestPublishHandlerRejectsInvalidContentType(t *testing.T) {
 			}
 			response := httptest.NewRecorder()
 
-			PublishHandler(response, request)
+			NewServer().PublishHandler(response, request)
 
 			assertResponse(t, response, http.StatusUnsupportedMediaType, "Content-Type must be application/json\n")
 		})
@@ -95,7 +95,7 @@ func TestPublishHandlerAcceptsJSONContentTypeParameters(t *testing.T) {
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	response := httptest.NewRecorder()
 
-	PublishHandler(response, request)
+	NewServer().PublishHandler(response, request)
 
 	assertResponse(t, response, http.StatusOK, "")
 }
@@ -116,7 +116,7 @@ func TestPublishHandlerRejectsInvalidJSON(t *testing.T) {
 			request := newPublishRequest("test-room", test.body)
 			response := httptest.NewRecorder()
 
-			PublishHandler(response, request)
+			NewServer().PublishHandler(response, request)
 
 			assertResponse(t, response, http.StatusBadRequest, test.want)
 		})
@@ -127,7 +127,7 @@ func TestPublishHandlerRejectsOversizedBody(t *testing.T) {
 	request := newPublishRequest("test-room", strings.Repeat(" ", 64*1024+1))
 	response := httptest.NewRecorder()
 
-	PublishHandler(response, request)
+	NewServer().PublishHandler(response, request)
 
 	assertResponse(t, response, http.StatusRequestEntityTooLarge, "request body too large\n")
 }
@@ -149,7 +149,7 @@ func TestPublishHandlerRejectsInvalidOffer(t *testing.T) {
 			request := newPublishRequest("test-room", test.body)
 			response := httptest.NewRecorder()
 
-			PublishHandler(response, request)
+			NewServer().PublishHandler(response, request)
 
 			assertResponse(t, response, http.StatusBadRequest, test.want)
 		})

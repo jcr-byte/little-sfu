@@ -14,7 +14,7 @@ type publishRequest struct {
 	Type string `json:"type"`
 }
 
-func PublishHandler(w http.ResponseWriter, r *http.Request) {
+func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 	// validate the request method is POST
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
@@ -115,6 +115,12 @@ func PublishHandler(w http.ResponseWriter, r *http.Request) {
 	// validate offer type
 	if offer.Type != "offer" {
 		http.Error(w, `type must be "offer"`, http.StatusBadRequest)
+		return
+	}
+
+	_, success := server.reserveRoom(roomID)
+	if !success {
+		http.Error(w, "room already has a publisher", http.StatusConflict)
 		return
 	}
 }
