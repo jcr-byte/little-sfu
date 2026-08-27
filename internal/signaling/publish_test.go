@@ -58,7 +58,7 @@ func TestPublishHandlerAcceptsValidRoomIDs(t *testing.T) {
 
 	for _, roomID := range roomIDs {
 		t.Run(roomID, func(t *testing.T) {
-			request := newPublishRequest(roomID, `{"sdp":"offer-sdp","type":"offer"}`)
+			request, _ := newValidPublishRequest(t, roomID)
 			response := httptest.NewRecorder()
 
 			NewServer().PublishHandler(response, request)
@@ -95,7 +95,7 @@ func TestPublishHandlerRejectsInvalidContentType(t *testing.T) {
 }
 
 func TestPublishHandlerAcceptsJSONContentTypeParameters(t *testing.T) {
-	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	request, _ := newValidPublishRequest(t, "test-room")
 	request.Header.Set("Content-Type", "application/json; charset=utf-8")
 	response := httptest.NewRecorder()
 
@@ -167,7 +167,7 @@ func TestPublishHandlerRejectsOccupiedRoom(t *testing.T) {
 		t.Fatal("expected initial room reservation to succeed")
 	}
 
-	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	request, _ := newValidPublishRequest(t, "test-room")
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
@@ -190,7 +190,7 @@ func TestPublishHandlerRemovesReservedRoomWhenPeerConnectionCreationFails(t *tes
 		return nil, errors.New("peer connection creation failed")
 	}
 
-	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	request, _ := newValidPublishRequest(t, "test-room")
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
@@ -217,7 +217,7 @@ func TestPublishHandlerStoresPeerConnectionOnReservedRoom(t *testing.T) {
 		return expectedPeerConnection, nil
 	}
 
-	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	request, _ := newValidPublishRequest(t, "test-room")
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
@@ -247,7 +247,7 @@ func TestPublishHandlerConfiguresPeerConnectionToReceiveAudioAndVideo(t *testing
 		return expectedPeerConnection, nil
 	}
 
-	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	request, _ := newValidPublishRequest(t, "test-room")
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
@@ -281,53 +281,8 @@ func TestPublishHandlerConfiguresPeerConnectionToReceiveAudioAndVideo(t *testing
 }
 
 func TestPublishHandlerSetsBrowserOfferAsRemoteDescription(t *testing.T) {
-	browserPeerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
-	if err != nil {
-		t.Fatalf("failed to create browser peer connection: %v", err)
-	}
-	t.Cleanup(func() {
-		browserPeerConnection.Close()
-	})
-
-	_, err = browserPeerConnection.AddTransceiverFromKind(
-		webrtc.RTPCodecTypeAudio,
-		webrtc.RTPTransceiverInit{
-			Direction: webrtc.RTPTransceiverDirectionSendonly,
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to add browser audio transceiver: %v", err)
-	}
-
-	_, err = browserPeerConnection.AddTransceiverFromKind(
-		webrtc.RTPCodecTypeVideo,
-		webrtc.RTPTransceiverInit{
-			Direction: webrtc.RTPTransceiverDirectionSendonly,
-		},
-	)
-	if err != nil {
-		t.Fatalf("failed to add browser video transceiver: %v", err)
-	}
-
-	offer, err := browserPeerConnection.CreateOffer(nil)
-	if err != nil {
-		t.Fatalf("failed to create browser offer: %v", err)
-	}
-
-	if err := browserPeerConnection.SetLocalDescription(offer); err != nil {
-		t.Fatalf("failed to set browser local description: %v", err)
-	}
-
-	body, err := json.Marshal(publishRequest{
-		SDP:  offer.SDP,
-		Type: offer.Type.String(),
-	})
-	if err != nil {
-		t.Fatalf("failed to encode publish request: %v", err)
-	}
-
 	server := NewServer()
-	request := newPublishRequest("test-room", string(body))
+	request, offer := newValidPublishRequest(t, "test-room")
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
@@ -349,6 +304,45 @@ func TestPublishHandlerSetsBrowserOfferAsRemoteDescription(t *testing.T) {
 	if remoteDescription.SDP != offer.SDP {
 		t.Error("expected remote description to contain the browser offer SDP")
 	}
+}
+
+func newValidPublishRequest(t *testing.T, roomID string) (*http.Request, webrtc.SessionDescription) {
+	t.Helper()
+
+	const offerSDP = "v=0\r\n" +
+		"o=- 0 0 IN IP4 127.0.0.1\r\n" +
+		"s=-\r\n" +
+		"t=0 0\r\n" +
+		"a=group:BUNDLE 0 1\r\n" +
+		"a=ice-ufrag:test\r\n" +
+		"a=ice-pwd:testtesttesttesttesttest\r\n" +
+		"a=fingerprint:sha-256 40:42:FB:47:87:52:BF:CB:EC:3A:DF:EB:06:DA:2D:B7:2F:59:42:10:23:7B:9D:4C:C9:58:DD:FF:A2:8F:17:67\r\n" +
+		"m=video 9 UDP/TLS/RTP/SAVPF 96\r\n" +
+		"c=IN IP4 0.0.0.0\r\n" +
+		"a=setup:actpass\r\n" +
+		"a=mid:0\r\n" +
+		"a=sendonly\r\n" +
+		"a=rtcp-mux\r\n" +
+		"a=rtpmap:96 VP8/90000\r\n" +
+		"m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n" +
+		"c=IN IP4 0.0.0.0\r\n" +
+		"a=setup:actpass\r\n" +
+		"a=mid:1\r\n" +
+		"a=sendonly\r\n" +
+		"a=rtcp-mux\r\n" +
+		"a=rtpmap:111 opus/48000/2\r\n"
+
+	offer := webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: offerSDP}
+
+	body, err := json.Marshal(publishRequest{
+		SDP:  offer.SDP,
+		Type: offer.Type.String(),
+	})
+	if err != nil {
+		t.Fatalf("failed to encode publish request: %v", err)
+	}
+
+	return newPublishRequest(roomID, string(body)), offer
 }
 
 func newPublishRequest(roomID, body string) *http.Request {
