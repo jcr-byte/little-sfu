@@ -135,7 +135,7 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// configure a receive-only video transceiver
+	// configure a receive-only audio transceiver
 	_, err = peerConnection.AddTransceiverFromKind(
 		webrtc.RTPCodecTypeAudio,
 		webrtc.RTPTransceiverInit{
@@ -149,7 +149,7 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// configure a receive-only audio transceiver
+	// configure a receive-only video transceiver
 	_, err = peerConnection.AddTransceiverFromKind(
 		webrtc.RTPCodecTypeVideo,
 		webrtc.RTPTransceiverInit{
@@ -160,6 +160,19 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		peerConnection.Close()
 		server.removeRoom(roomID, room)
 		http.Error(w, "failed to create video transceiver", http.StatusInternalServerError)
+		return
+	}
+
+	// set the remote description
+	sessionDescription := webrtc.SessionDescription{
+		Type: webrtc.SDPTypeOffer,
+		SDP:  offer.SDP,
+	}
+	err = peerConnection.SetRemoteDescription(sessionDescription)
+	if err != nil {
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		http.Error(w, "invalid SDP offer", http.StatusBadRequest)
 		return
 	}
 

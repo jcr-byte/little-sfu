@@ -1,6 +1,7 @@
 package signaling
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -276,6 +277,77 @@ func TestPublishHandlerConfiguresPeerConnectionToReceiveAudioAndVideo(t *testing
 
 	if !foundVideo {
 		t.Error("expected a receive-only video transceiver")
+	}
+}
+
+func TestPublishHandlerSetsBrowserOfferAsRemoteDescription(t *testing.T) {
+	browserPeerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("failed to create browser peer connection: %v", err)
+	}
+	t.Cleanup(func() {
+		browserPeerConnection.Close()
+	})
+
+	_, err = browserPeerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeAudio,
+		webrtc.RTPTransceiverInit{
+			Direction: webrtc.RTPTransceiverDirectionSendonly,
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to add browser audio transceiver: %v", err)
+	}
+
+	_, err = browserPeerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeVideo,
+		webrtc.RTPTransceiverInit{
+			Direction: webrtc.RTPTransceiverDirectionSendonly,
+		},
+	)
+	if err != nil {
+		t.Fatalf("failed to add browser video transceiver: %v", err)
+	}
+
+	offer, err := browserPeerConnection.CreateOffer(nil)
+	if err != nil {
+		t.Fatalf("failed to create browser offer: %v", err)
+	}
+
+	if err := browserPeerConnection.SetLocalDescription(offer); err != nil {
+		t.Fatalf("failed to set browser local description: %v", err)
+	}
+
+	body, err := json.Marshal(publishRequest{
+		SDP:  offer.SDP,
+		Type: offer.Type.String(),
+	})
+	if err != nil {
+		t.Fatalf("failed to encode publish request: %v", err)
+	}
+
+	server := NewServer()
+	request := newPublishRequest("test-room", string(body))
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	room, ok := server.findRoom("test-room")
+	if !ok {
+		t.Fatal("expected reserved room to remain registered")
+	}
+
+	remoteDescription := room.publisherPeerConnection.RemoteDescription()
+	if remoteDescription == nil {
+		t.Fatal("expected publisher peer connection to have a remote description")
+	}
+
+	if remoteDescription.Type != webrtc.SDPTypeOffer {
+		t.Errorf("expected remote description type %q, got %q", webrtc.SDPTypeOffer, remoteDescription.Type)
+	}
+
+	if remoteDescription.SDP != offer.SDP {
+		t.Error("expected remote description to contain the browser offer SDP")
 	}
 }
 
