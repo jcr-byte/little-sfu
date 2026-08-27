@@ -2,20 +2,27 @@ package signaling
 
 import (
 	"sync"
+
+	"github.com/pion/webrtc/v4"
 )
 
 type Room struct {
-	ID string
+	ID                      string
+	publisherPeerConnection *webrtc.PeerConnection
 }
 
 type Server struct {
-	mu    sync.RWMutex
-	rooms map[string]*Room
+	mu                sync.RWMutex
+	rooms             map[string]*Room
+	newPeerConnection func() (*webrtc.PeerConnection, error)
 }
 
 func NewServer() *Server {
 	return &Server{
 		rooms: make(map[string]*Room),
+		newPeerConnection: func() (*webrtc.PeerConnection, error) {
+			return webrtc.NewPeerConnection(webrtc.Configuration{})
+		},
 	}
 }
 

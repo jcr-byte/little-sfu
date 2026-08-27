@@ -1,10 +1,13 @@
 package signaling
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/pion/webrtc/v4"
 )
 
 func TestPublishHandlerRejectsNonPOSTMethod(t *testing.T) {
@@ -177,6 +180,54 @@ func TestPublishHandlerRejectsOccupiedRoom(t *testing.T) {
 
 	if found != original {
 		t.Error("expected conflict to preserve the original room")
+	}
+}
+
+func TestPublishHandlerRemovesReservedRoomWhenPeerConnectionCreationFails(t *testing.T) {
+	server := NewServer()
+	server.newPeerConnection = func() (*webrtc.PeerConnection, error) {
+		return nil, errors.New("peer connection creation failed")
+	}
+
+	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	assertResponse(t, response, http.StatusInternalServerError, "failed to create peer connection\n")
+
+	if room, ok := server.findRoom("test-room"); ok || room != nil {
+		t.Error("expected failed peer connection creation to release the room reservation")
+	}
+}
+
+func TestPublishHandlerStoresPeerConnectionOnReservedRoom(t *testing.T) {
+	server := NewServer()
+
+	expectedPeerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("failed to create test peer connection: %v", err)
+	}
+	t.Cleanup(func() {
+		expectedPeerConnection.Close()
+	})
+
+	server.newPeerConnection = func() (*webrtc.PeerConnection, error) {
+		return expectedPeerConnection, nil
+	}
+
+	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	room, ok := server.findRoom("test-room")
+	if !ok {
+		t.Fatal("expected reserved room to remain registered")
+	}
+
+	if room.publisherPeerConnection != expectedPeerConnection {
+		t.Error("expected room to store the publisher peer connection")
 	}
 }
 

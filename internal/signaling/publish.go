@@ -118,9 +118,20 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_, success := server.reserveRoom(roomID)
+	// reserve room
+	room, success := server.reserveRoom(roomID)
 	if !success {
 		http.Error(w, "room already has a publisher", http.StatusConflict)
 		return
 	}
+
+	// create a server side pion connection
+	peerConnection, err := server.newPeerConnection()
+	if err != nil {
+		server.removeRoom(roomID, room)
+		http.Error(w, "failed to create peer connection", http.StatusInternalServerError)
+		return
+	}
+
+	room.publisherPeerConnection = peerConnection
 }
