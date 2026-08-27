@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"strings"
@@ -173,6 +174,26 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		peerConnection.Close()
 		server.removeRoom(roomID, room)
 		http.Error(w, "invalid SDP offer", http.StatusBadRequest)
+		return
+	}
+
+	// generate SDP answer
+	answer, err := peerConnection.CreateAnswer(nil)
+	if err != nil {
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		log.Printf("failed to create SDP answer for room %q: %v", roomID, err)
+		http.Error(w, "failed to create SDP answer", http.StatusInternalServerError)
+		return
+	}
+
+	// set local description
+	err = peerConnection.SetLocalDescription(answer)
+	if err != nil {
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		log.Printf("failed to set local description for room %q: %v", roomID, err)
+		http.Error(w, "failed to set local description", http.StatusInternalServerError)
 		return
 	}
 

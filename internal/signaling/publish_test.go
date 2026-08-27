@@ -306,6 +306,32 @@ func TestPublishHandlerSetsBrowserOfferAsRemoteDescription(t *testing.T) {
 	}
 }
 
+func TestPublishHandlerSetsAnswerAsLocalDescription(t *testing.T) {
+	server := NewServer()
+	request, _ := newValidPublishRequest(t, "test-room")
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	room, ok := server.findRoom("test-room")
+	if !ok {
+		t.Fatal("expected reserved room to remain registered")
+	}
+
+	localDescription := room.publisherPeerConnection.LocalDescription()
+	if localDescription == nil {
+		t.Fatal("expected publisher peer connection to have a local description")
+	}
+
+	if localDescription.Type != webrtc.SDPTypeAnswer {
+		t.Errorf("expected local description type %q, got %q", webrtc.SDPTypeAnswer, localDescription.Type)
+	}
+
+	if strings.TrimSpace(localDescription.SDP) == "" {
+		t.Error("expected local description to contain answer SDP")
+	}
+}
+
 func newValidPublishRequest(t *testing.T, roomID string) (*http.Request, webrtc.SessionDescription) {
 	t.Helper()
 
@@ -317,20 +343,20 @@ func newValidPublishRequest(t *testing.T, roomID string) (*http.Request, webrtc.
 		"a=ice-ufrag:test\r\n" +
 		"a=ice-pwd:testtesttesttesttesttest\r\n" +
 		"a=fingerprint:sha-256 40:42:FB:47:87:52:BF:CB:EC:3A:DF:EB:06:DA:2D:B7:2F:59:42:10:23:7B:9D:4C:C9:58:DD:FF:A2:8F:17:67\r\n" +
-		"m=video 9 UDP/TLS/RTP/SAVPF 96\r\n" +
+		"m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n" +
 		"c=IN IP4 0.0.0.0\r\n" +
 		"a=setup:actpass\r\n" +
 		"a=mid:0\r\n" +
 		"a=sendonly\r\n" +
 		"a=rtcp-mux\r\n" +
-		"a=rtpmap:96 VP8/90000\r\n" +
-		"m=audio 9 UDP/TLS/RTP/SAVPF 111\r\n" +
+		"a=rtpmap:111 opus/48000/2\r\n" +
+		"m=video 9 UDP/TLS/RTP/SAVPF 96\r\n" +
 		"c=IN IP4 0.0.0.0\r\n" +
 		"a=setup:actpass\r\n" +
 		"a=mid:1\r\n" +
 		"a=sendonly\r\n" +
 		"a=rtcp-mux\r\n" +
-		"a=rtpmap:111 opus/48000/2\r\n"
+		"a=rtpmap:96 VP8/90000\r\n"
 
 	offer := webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: offerSDP}
 
