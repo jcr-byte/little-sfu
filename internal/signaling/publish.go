@@ -7,6 +7,8 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+
+	"github.com/pion/webrtc/v4"
 )
 
 type publishRequest struct {
@@ -130,6 +132,34 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		server.removeRoom(roomID, room)
 		http.Error(w, "failed to create peer connection", http.StatusInternalServerError)
+		return
+	}
+
+	// configure a receive-only video transceiver
+	_, err = peerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeAudio,
+		webrtc.RTPTransceiverInit{
+			Direction: webrtc.RTPTransceiverDirectionRecvonly,
+		},
+	)
+	if err != nil {
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		http.Error(w, "failed to create audio transceiver", http.StatusInternalServerError)
+		return
+	}
+
+	// configure a receive-only audio transceiver
+	_, err = peerConnection.AddTransceiverFromKind(
+		webrtc.RTPCodecTypeVideo,
+		webrtc.RTPTransceiverInit{
+			Direction: webrtc.RTPTransceiverDirectionRecvonly,
+		},
+	)
+	if err != nil {
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		http.Error(w, "failed to create video transceiver", http.StatusInternalServerError)
 		return
 	}
 

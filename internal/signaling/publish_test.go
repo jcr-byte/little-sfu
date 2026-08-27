@@ -231,6 +231,54 @@ func TestPublishHandlerStoresPeerConnectionOnReservedRoom(t *testing.T) {
 	}
 }
 
+func TestPublishHandlerConfiguresPeerConnectionToReceiveAudioAndVideo(t *testing.T) {
+	server := NewServer()
+
+	expectedPeerConnection, err := webrtc.NewPeerConnection(webrtc.Configuration{})
+	if err != nil {
+		t.Fatalf("failed to create test peer connection: %v", err)
+	}
+	t.Cleanup(func() {
+		expectedPeerConnection.Close()
+	})
+
+	server.newPeerConnection = func() (*webrtc.PeerConnection, error) {
+		return expectedPeerConnection, nil
+	}
+
+	request := newPublishRequest("test-room", `{"sdp":"offer-sdp","type":"offer"}`)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+	transceivers := expectedPeerConnection.GetTransceivers()
+
+	if len(transceivers) != 2 {
+		t.Fatalf("expected 2 transceivers, got %d", len(transceivers))
+	}
+
+	foundAudio := false
+	foundVideo := false
+	for _, transceiver := range transceivers {
+		if transceiver.Kind() == webrtc.RTPCodecTypeAudio &&
+			transceiver.Direction() == webrtc.RTPTransceiverDirectionRecvonly {
+			foundAudio = true
+		}
+
+		if transceiver.Kind() == webrtc.RTPCodecTypeVideo &&
+			transceiver.Direction() == webrtc.RTPTransceiverDirectionRecvonly {
+			foundVideo = true
+		}
+	}
+
+	if !foundAudio {
+		t.Error("expected a receive-only audio transceiver")
+	}
+
+	if !foundVideo {
+		t.Error("expected a receive-only video transceiver")
+	}
+}
+
 func newPublishRequest(roomID, body string) *http.Request {
 	request := httptest.NewRequest(http.MethodPost, "/publish/test-room", strings.NewReader(body))
 	request.Header.Set("Content-Type", "application/json")
