@@ -1,6 +1,7 @@
 package signaling
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"io"
@@ -187,6 +188,8 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
+
 	// set local description
 	err = peerConnection.SetLocalDescription(answer)
 	if err != nil {
@@ -197,5 +200,26 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room.publisherPeerConnection = peerConnection
+	select {
+	case <-gatherComplete:
+		room.publisherPeerConnection = peerConnection
+		completed := peerConnection.LocalDescription()
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+
+		if err := json.NewEncoder(w).Encode(completed); err != nil {
+			log.Printf("failed to write SDP answer for room %q: %v", roomID, err)
+		}
+	case <-r.Context().Done():
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+
+		switch r.Context().Err() {
+		case context.DeadlineExceeded:
+			http.Error(w, "ICE gathering timed out", http.StatusGatewayTimeout)
+		default:
+			http.Error(w, "request cancelled", http.StatusRequestTimeout)
+		}
+	}
 }

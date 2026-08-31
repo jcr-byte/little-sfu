@@ -1,12 +1,14 @@
 package signaling
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -63,7 +65,7 @@ func TestPublishHandlerAcceptsValidRoomIDs(t *testing.T) {
 
 			NewServer().PublishHandler(response, request)
 
-			assertResponse(t, response, http.StatusOK, "")
+			assertStatus(t, response, http.StatusOK)
 		})
 	}
 }
@@ -101,7 +103,7 @@ func TestPublishHandlerAcceptsJSONContentTypeParameters(t *testing.T) {
 
 	NewServer().PublishHandler(response, request)
 
-	assertResponse(t, response, http.StatusOK, "")
+	assertStatus(t, response, http.StatusOK)
 }
 
 func TestPublishHandlerRejectsInvalidJSON(t *testing.T) {
@@ -332,6 +334,73 @@ func TestPublishHandlerSetsAnswerAsLocalDescription(t *testing.T) {
 	}
 }
 
+func TestPublishHandlerReturnsCompletedAnswerAsJSON(t *testing.T) {
+	server := NewServer()
+	request, _ := newValidPublishRequest(t, "test-room")
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	room, ok := server.findRoom("test-room")
+	if !ok {
+		t.Fatal("expected reserved room to remain registered")
+	}
+
+	want := room.publisherPeerConnection.LocalDescription()
+	if want == nil {
+		t.Fatal("expected publisher peer connection to have a local description")
+	}
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected status %d, got %d", http.StatusOK, response.Code)
+	}
+
+	if got := response.Header().Get("Content-Type"); got != "application/json" {
+		t.Errorf("expected Content-Type %q, got %q", "application/json", got)
+	}
+
+	var got publishRequest
+	if err := json.NewDecoder(response.Body).Decode(&got); err != nil {
+		t.Fatalf("expected a JSON answer, got decode error: %v", err)
+	}
+
+	if got.Type != webrtc.SDPTypeAnswer.String() {
+		t.Errorf("expected answer type %q, got %q", webrtc.SDPTypeAnswer, got.Type)
+	}
+
+	if got.SDP != want.SDP {
+		t.Error("expected response to contain the completed local description")
+	}
+}
+
+func TestPublishHandlerStopsWhenRequestIsCancelled(t *testing.T) {
+	server := NewServer()
+	request, _ := newValidPublishRequest(t, "test-room")
+	ctx, cancel := context.WithCancel(request.Context())
+	cancel()
+	request = request.WithContext(ctx)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	assertResponse(t, response, http.StatusRequestTimeout, "request cancelled\n")
+	assertRoomReleased(t, server, "test-room")
+}
+
+func TestPublishHandlerStopsWhenRequestDeadlineExpires(t *testing.T) {
+	server := NewServer()
+	request, _ := newValidPublishRequest(t, "test-room")
+	ctx, cancel := context.WithDeadline(request.Context(), time.Now().Add(-time.Second))
+	defer cancel()
+	request = request.WithContext(ctx)
+	response := httptest.NewRecorder()
+
+	server.PublishHandler(response, request)
+
+	assertResponse(t, response, http.StatusGatewayTimeout, "ICE gathering timed out\n")
+	assertRoomReleased(t, server, "test-room")
+}
+
 func newValidPublishRequest(t *testing.T, roomID string) (*http.Request, webrtc.SessionDescription) {
 	t.Helper()
 
@@ -378,14 +447,28 @@ func newPublishRequest(roomID, body string) *http.Request {
 	return request
 }
 
-func assertResponse(t *testing.T, response *httptest.ResponseRecorder, wantStatus int, wantBody string) {
+func assertStatus(t *testing.T, response *httptest.ResponseRecorder, wantStatus int) {
 	t.Helper()
 
 	if response.Code != wantStatus {
 		t.Errorf("expected status %d, got %d", wantStatus, response.Code)
 	}
+}
+
+func assertResponse(t *testing.T, response *httptest.ResponseRecorder, wantStatus int, wantBody string) {
+	t.Helper()
+
+	assertStatus(t, response, wantStatus)
 
 	if got := response.Body.String(); got != wantBody {
 		t.Errorf("expected body %q, got %q", wantBody, got)
+	}
+}
+
+func assertRoomReleased(t *testing.T, server *Server, roomID string) {
+	t.Helper()
+
+	if room, ok := server.findRoom(roomID); ok || room != nil {
+		t.Errorf("expected room %q to be released", roomID)
 	}
 }
