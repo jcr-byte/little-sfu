@@ -12,6 +12,7 @@
     <button id="publish">Publish</button>
 
     <script>
+      // wait for ice gathering helper function
       function waitForIceGathering(peerConnection) {
         if (peerConnection.iceGatheringState === "complete") {
           return Promise.resolve();
@@ -33,6 +34,7 @@
         });
       }
 
+      // publish button handler
       document.querySelector("#publish").addEventListener("click", async () => {
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
@@ -50,6 +52,19 @@
         await waitForIceGathering(peerConnection);
 
         console.log(peerConnection.localDescription);
+
+        const roomID = new URLSearchParams(location.search).get("room") || "demo";
+        const body = JSON.stringify(peerConnection.localDescription)
+        
+        const res = await fetch(`/publish/${roomID}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json();
+        await peerConnection.setRemoteDescription(data);
       });
     </script>
   </body>
