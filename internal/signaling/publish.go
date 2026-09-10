@@ -165,6 +165,52 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	peerConnection.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+		codec := track.Codec().MimeType
+
+		switch {
+		case track.Kind() == webrtc.RTPCodecTypeAudio &&
+			codec == webrtc.MimeTypeOpus:
+			log.Printf(
+				"room %q received publisher audio track %q using %s",
+				roomID,
+				track.ID(),
+				codec,
+			)
+
+		case track.Kind() == webrtc.RTPCodecTypeVideo &&
+			codec == webrtc.MimeTypeVP8:
+			log.Printf(
+				"room %q received publisher video track %q using %s",
+				roomID,
+				track.ID(),
+				codec,
+			)
+
+		default:
+			log.Printf(
+				"room %q received unsupported publisher track: kind=%s codec=%s",
+				roomID,
+				track.Kind(),
+				codec,
+			)
+			return
+		}
+
+		for {
+			_, _, err := track.ReadRTP()
+			if err != nil {
+				log.Printf(
+					"room %q stopped receiving publisher track %q: %v",
+					roomID,
+					track.ID(),
+					err,
+				)
+				return
+			}
+		}
+	})
+
 	// set the remote description
 	sessionDescription := webrtc.SessionDescription{
 		Type: webrtc.SDPTypeOffer,
