@@ -197,8 +197,18 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		outgoing, err := webrtc.NewTrackLocalStaticRTP(
+			track.Codec().RTPCodecCapability,
+			track.ID(),
+			track.StreamID(),
+		)
+		if err != nil {
+			log.Printf("room %q failed to create outgoing track: %v", roomID, err)
+			return
+		}
+
 		for {
-			_, _, err := track.ReadRTP()
+			packet, _, err := track.ReadRTP()
 			if err != nil {
 				log.Printf(
 					"room %q stopped receiving publisher track %q: %v",
@@ -207,6 +217,13 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 					err,
 				)
 				return
+			}
+
+			if err := outgoing.WriteRTP(packet); err != nil {
+				log.Printf(
+					"room %q failed to forward track %q: %v",
+					roomID, track.ID(), err,
+				)
 			}
 		}
 	})
