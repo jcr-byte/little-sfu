@@ -207,6 +207,15 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		room.mu.Lock()
+		switch track.Kind() {
+		case webrtc.RTPCodecTypeAudio:
+			room.audioTrack = outgoing
+		case webrtc.RTPCodecTypeVideo:
+			room.videoTrack = outgoing
+		}
+		room.mu.Unlock()
+
 		for {
 			packet, _, err := track.ReadRTP()
 			if err != nil {
@@ -265,7 +274,9 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 
 	select {
 	case <-gatherComplete:
+		room.mu.Lock()
 		room.publisherPeerConnection = peerConnection
+		room.mu.Unlock()
 		completed := peerConnection.LocalDescription()
 
 		w.Header().Set("Content-Type", "application/json")

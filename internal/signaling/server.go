@@ -7,8 +7,12 @@ import (
 )
 
 type Room struct {
-	ID                      string
+	ID string
+
+	mu                      sync.RWMutex
 	publisherPeerConnection *webrtc.PeerConnection
+	audioTrack              *webrtc.TrackLocalStaticRTP
+	videoTrack              *webrtc.TrackLocalStaticRTP
 }
 
 type Server struct {
