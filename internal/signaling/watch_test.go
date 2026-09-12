@@ -81,6 +81,55 @@ func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 	}
 }
 
+func TestWatchHandlerReturnsAnswerForReadyPublisher(t *testing.T) {
+	server := NewServer()
+	room, _ := server.reserveRoom("test-room")
+
+	room.audioTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "audio")
+	room.videoTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeVP8,
+		ClockRate: 90000,
+	}, "video")
+
+	_, offer := newValidPublishRequest(t, "test-room")
+	offer.SDP = strings.ReplaceAll(offer.SDP, "a=sendonly", "a=recvonly")
+
+	body, err := json.Marshal(offer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/watch/test-room",
+		strings.NewReader(string(body)),
+	)
+	request.SetPathValue("room", "test-room")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	server.WatchHandler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.Code, response.Body)
+	}
+
+	var answer webrtc.SessionDescription
+	if err := json.NewDecoder(response.Body).Decode(&answer); err != nil {
+		t.Fatalf("expected JSON SDP answer: %v", err)
+	}
+	if answer.Type != webrtc.SDPTypeAnswer {
+		t.Errorf("expected answer type, got %s", answer.Type)
+	}
+	if strings.TrimSpace(answer.SDP) == "" {
+		t.Error("expected nonempty answer SDP")
+	}
+}
+
 func newWatchTestTrack(
 	t *testing.T,
 	codec webrtc.RTPCodecCapability,
