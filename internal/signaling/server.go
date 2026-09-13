@@ -13,6 +13,7 @@ type Room struct {
 	audioTrack              *webrtc.TrackLocalStaticRTP
 	videoTrack              *webrtc.TrackLocalStaticRTP
 	viewers                 map[*webrtc.PeerConnection]struct{}
+	closed                  bool
 }
 
 type Server struct {
@@ -71,6 +72,36 @@ func (s *Server) removeRoom(roomID string, room *Room) bool {
 
 	delete(s.rooms, roomID)
 	return true
+}
+
+func (s *Server) removePublisher(room *Room) {
+	room.mu.Lock()
+	if room.closed {
+		room.mu.Unlock()
+		return
+	}
+	room.closed = true
+
+	savedPublisher := room.publisherPeerConnection
+	room.publisherPeerConnection = nil
+
+	savedViewers := make([]*webrtc.PeerConnection, 0, len(room.viewers))
+	for pc := range room.viewers {
+		savedViewers = append(savedViewers, pc)
+	}
+	clear(room.viewers)
+	room.audioTrack = nil
+	room.videoTrack = nil
+	room.mu.Unlock()
+
+	// Closing connections can trigger callbacks that need the room lock.
+	if savedPublisher != nil {
+		savedPublisher.Close()
+	}
+	for _, pc := range savedViewers {
+		pc.Close()
+	}
+	s.removeRoom(room.ID, room)
 }
 
 func (room *Room) addViewer(pc *webrtc.PeerConnection) {

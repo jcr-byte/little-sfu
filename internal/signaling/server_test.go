@@ -6,6 +6,56 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
+func TestRemovePublisherClosesConnectionsAndReleasesRoom(t *testing.T) {
+	server := NewServer()
+	room, reserved := server.reserveRoom("test-room")
+	if !reserved {
+		t.Fatal("expected room reservation to succeed")
+	}
+
+	newConnection := func() *webrtc.PeerConnection {
+		t.Helper()
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+		return pc
+	}
+
+	publisher := newConnection()
+	room.publisherPeerConnection = publisher
+	firstViewer := newConnection()
+	secondViewer := newConnection()
+	room.addViewer(firstViewer)
+	room.addViewer(secondViewer)
+
+	server.removePublisher(room)
+
+	for name, pc := range map[string]*webrtc.PeerConnection{
+		"publisher":     publisher,
+		"first viewer":  firstViewer,
+		"second viewer": secondViewer,
+	} {
+		if state := pc.ConnectionState(); state != webrtc.PeerConnectionStateClosed {
+			t.Errorf("%s connection should be closed after publisher cleanup, got %s", name, state)
+		}
+	}
+
+	if _, exists := server.findRoom(room.ID); exists {
+		t.Error("expected publisher cleanup to remove the room")
+	}
+	replacement, reserved := server.reserveRoom(room.ID)
+	if !reserved {
+		t.Fatal("expected room ID to be reusable after publisher cleanup")
+	}
+
+	server.removePublisher(room)
+	if found, exists := server.findRoom(room.ID); !exists || found != replacement {
+		t.Error("expected repeated cleanup to preserve the replacement room")
+	}
+}
+
 func TestRemoveViewerClosesConnectionAndPreservesOtherViewers(t *testing.T) {
 	server := NewServer()
 	room, _ := server.reserveRoom("test-room")
