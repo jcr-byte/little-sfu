@@ -57,10 +57,20 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	room.addViewer(peerConnection)
+
+	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+		switch state {
+		case webrtc.PeerConnectionStateFailed,
+			webrtc.PeerConnectionStateClosed:
+			room.removeViewer(peerConnection)
+		}
+	})
+
 	// Attach the publisher's audio track to the viewer connection
 	audioSender, err := peerConnection.AddTrack(audioTrack)
 	if err != nil {
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 		http.Error(w, "failed to add audio track", http.StatusInternalServerError)
 		return
 	}
@@ -68,7 +78,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Attach the publisher's video track to the viewer connection
 	videoSender, err := peerConnection.AddTrack(videoTrack)
 	if err != nil {
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 		http.Error(w, "failed to add video track", http.StatusInternalServerError)
 		return
 	}
@@ -80,7 +90,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply the viewer's SDP offer.
 	err = peerConnection.SetRemoteDescription(offer)
 	if err != nil {
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 		http.Error(w, "invalid SDP offer", http.StatusBadRequest)
 		return
 	}
@@ -88,7 +98,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Create the SDP answer.
 	answer, err := peerConnection.CreateAnswer(nil)
 	if err != nil {
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 		http.Error(w, "failed to create SDP answer", http.StatusInternalServerError)
 		return
 	}
@@ -99,7 +109,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Apply the server's SDP answer.
 	err = peerConnection.SetLocalDescription(answer)
 	if err != nil {
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 		http.Error(w, "failed to set local description", http.StatusInternalServerError)
 		return
 	}
@@ -111,12 +121,12 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(completed); err != nil {
-			peerConnection.Close()
+			room.removeViewer(peerConnection)
 			log.Printf("failed to write viewer SDP answer: %v", err)
 		}
 
 	case <-r.Context().Done():
-		peerConnection.Close()
+		room.removeViewer(peerConnection)
 
 		if errors.Is(r.Context().Err(), context.DeadlineExceeded) {
 			http.Error(w, "ICE gathering timed out", http.StatusGatewayTimeout)

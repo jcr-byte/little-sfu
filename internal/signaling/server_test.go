@@ -2,7 +2,46 @@ package signaling
 
 import (
 	"testing"
+
+	"github.com/pion/webrtc/v4"
 )
+
+func TestRemoveViewerClosesConnectionAndPreservesOtherViewers(t *testing.T) {
+	server := NewServer()
+	room, _ := server.reserveRoom("test-room")
+
+	newViewer := func() *webrtc.PeerConnection {
+		t.Helper()
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+		room.addViewer(pc)
+		return pc
+	}
+	viewer := newViewer()
+	otherViewer := newViewer()
+
+	for _, step := range []string{"first removal", "repeated removal"} {
+		room.removeViewer(viewer)
+
+		room.mu.RLock()
+		_, stillRegistered := room.viewers[viewer]
+		_, otherRegistered := room.viewers[otherViewer]
+		room.mu.RUnlock()
+
+		if stillRegistered {
+			t.Errorf("%s: removed viewer is still registered", step)
+		}
+		if viewer.ConnectionState() != webrtc.PeerConnectionStateClosed {
+			t.Errorf("%s: removed viewer connection is not closed", step)
+		}
+		if !otherRegistered || otherViewer.ConnectionState() == webrtc.PeerConnectionStateClosed {
+			t.Errorf("%s: cleanup affected another viewer", step)
+		}
+	}
+}
 
 func TestReserveRoom(t *testing.T) {
 	server := NewServer()

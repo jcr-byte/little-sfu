@@ -7,12 +7,12 @@ import (
 )
 
 type Room struct {
-	ID string
-
+	ID                      string
 	mu                      sync.RWMutex
 	publisherPeerConnection *webrtc.PeerConnection
 	audioTrack              *webrtc.TrackLocalStaticRTP
 	videoTrack              *webrtc.TrackLocalStaticRTP
+	viewers                 map[*webrtc.PeerConnection]struct{}
 }
 
 type Server struct {
@@ -39,7 +39,10 @@ func (s *Server) reserveRoom(roomID string) (*Room, bool) {
 		return nil, false
 	}
 
-	room := &Room{ID: roomID}
+	room := &Room{
+		ID:      roomID,
+		viewers: make(map[*webrtc.PeerConnection]struct{}),
+	}
 	s.rooms[roomID] = room
 
 	return room, true
@@ -68,4 +71,22 @@ func (s *Server) removeRoom(roomID string, room *Room) bool {
 
 	delete(s.rooms, roomID)
 	return true
+}
+
+func (room *Room) addViewer(pc *webrtc.PeerConnection) {
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	room.viewers[pc] = struct{}{}
+}
+
+func (room *Room) removeViewer(pc *webrtc.PeerConnection) {
+	room.mu.Lock()
+	_, exists := room.viewers[pc]
+	delete(room.viewers, pc)
+	room.mu.Unlock()
+
+	if exists {
+		pc.Close()
+	}
 }

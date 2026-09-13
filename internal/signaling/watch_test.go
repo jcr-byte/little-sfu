@@ -35,7 +35,8 @@ func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 				}
 
 				if test.hasAudio {
-					room.audioTrack = newWatchTestTrack(t,
+					room.audioTrack = newWatchTestTrack(
+						t,
 						webrtc.RTPCodecCapability{
 							MimeType:  webrtc.MimeTypeOpus,
 							ClockRate: 48000,
@@ -46,7 +47,8 @@ func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 				}
 
 				if test.hasVideo {
-					room.videoTrack = newWatchTestTrack(t,
+					room.videoTrack = newWatchTestTrack(
+						t,
 						webrtc.RTPCodecCapability{
 							MimeType:  webrtc.MimeTypeVP8,
 							ClockRate: 90000,
@@ -127,6 +129,54 @@ func TestWatchHandlerReturnsAnswerForReadyPublisher(t *testing.T) {
 	}
 	if strings.TrimSpace(answer.SDP) == "" {
 		t.Error("expected nonempty answer SDP")
+	}
+}
+
+func TestWatchHandlerCleansUpViewerAfterInvalidSDP(t *testing.T) {
+	server := NewServer()
+	room, _ := server.reserveRoom("test-room")
+	room.audioTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "audio")
+	room.videoTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeVP8,
+		ClockRate: 90000,
+	}, "video")
+
+	viewer, err := server.newPeerConnection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { viewer.Close() })
+	created := false
+	server.newPeerConnection = func() (*webrtc.PeerConnection, error) {
+		created = true
+		return viewer, nil
+	}
+
+	// Valid JSON reaches connection setup; invalid SDP fails after registration.
+	request := httptest.NewRequest(http.MethodPost, "/watch/test-room",
+		strings.NewReader(`{"type":"offer","sdp":"invalid SDP"}`))
+	request.SetPathValue("room", "test-room")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	server.WatchHandler(response, request)
+
+	assertResponse(t, response, http.StatusBadRequest, "invalid SDP offer\n")
+	if !created {
+		t.Fatal("expected signaling to reach viewer connection creation")
+	}
+	room.mu.RLock()
+	remainingViewers := len(room.viewers)
+	room.mu.RUnlock()
+	if remainingViewers != 0 {
+		t.Errorf("expected no registered viewers after signaling failure, got %d", remainingViewers)
+	}
+	if viewer.ConnectionState() != webrtc.PeerConnectionStateClosed {
+		t.Error("expected viewer connection to be closed after signaling failure")
 	}
 }
 
