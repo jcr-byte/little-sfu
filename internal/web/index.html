@@ -10,6 +10,8 @@
     <p>The server is running.</p>
 
     <button id="publish">Publish</button>
+    <button id="watch">Watch</button>
+    <video id="remote-video" autoplay playsinline controls></video>
 
     <script>
       // wait for ice gathering helper function
@@ -57,6 +59,40 @@
         const body = JSON.stringify(peerConnection.localDescription)
         
         const res = await fetch(`/publish/${roomID}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body
+        });
+
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const data = await res.json();
+        await peerConnection.setRemoteDescription(data);
+      });
+
+      // watch button handler
+      document.querySelector("#watch").addEventListener("click", async () => {
+        // init new peer connection for viewer
+        const peerConnection = new RTCPeerConnection();
+
+        // add video and audio transceivers
+        peerConnection.addTransceiver("audio", { direction: "recvonly" });
+        peerConnection.addTransceiver("video", { direction: "recvonly" });
+
+        peerConnection.ontrack = (event) => {
+          document.querySelector("#remote-video").srcObject = event.streams[0];
+        };
+
+        // Create viewer's SDP offer and wait for ICE gathering
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        await waitForIceGathering(peerConnection);
+
+        console.log(peerConnection.localDescription);
+
+        const roomID = new URLSearchParams(location.search).get("room") || "demo";
+        const body = JSON.stringify(peerConnection.localDescription)
+        
+        const res = await fetch(`/watch/${roomID}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: body

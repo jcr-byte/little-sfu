@@ -17,6 +17,7 @@ func main() {
 	})
 
 	serveMux.HandleFunc("POST /publish/{room}", server.PublishHandler)
+	serveMux.HandleFunc("POST /watch/{room}", server.WatchHandler)
 
 	log.Println("Little SFU listening on http://localhost:8080")
 
