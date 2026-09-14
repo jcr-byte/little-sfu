@@ -401,6 +401,58 @@ func TestPublishHandlerStopsWhenRequestDeadlineExpires(t *testing.T) {
 	assertRoomReleased(t, server, "test-room")
 }
 
+func TestPublishHandlerReleasesRoomWhenPublisherCloses(t *testing.T) {
+	server := NewServer()
+	const roomID = "test-room"
+
+	request, _ := newValidPublishRequest(t, roomID)
+	response := httptest.NewRecorder()
+	server.PublishHandler(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", response.Code, response.Body)
+	}
+
+	room, exists := server.findRoom(roomID)
+	if !exists {
+		t.Fatal("expected publisher room to be registered")
+	}
+	t.Cleanup(func() { server.removePublisher(room) })
+
+	room.mu.RLock()
+	publisher := room.publisherPeerConnection
+	room.mu.RUnlock()
+	if publisher == nil {
+		t.Fatal("expected publisher connection")
+	}
+
+	if err := publisher.Close(); err != nil {
+		t.Fatalf("failed to close publisher: %v", err)
+	}
+
+	// Connection-state callbacks run asynchronously.
+	timeout := time.NewTimer(time.Second)
+	defer timeout.Stop()
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		if _, exists := server.findRoom(roomID); !exists {
+			break
+		}
+
+		select {
+		case <-ticker.C:
+		case <-timeout.C:
+			t.Fatal("publisher closure did not release the room")
+		}
+	}
+
+	if _, reserved := server.reserveRoom(roomID); !reserved {
+		t.Fatal("expected room ID to be reusable after publisher closure")
+	}
+}
+
 func newValidPublishRequest(t *testing.T, roomID string) (*http.Request, webrtc.SessionDescription) {
 	t.Helper()
 

@@ -277,6 +277,15 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		room.mu.Lock()
 		room.publisherPeerConnection = peerConnection
 		room.mu.Unlock()
+
+		peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
+			switch state {
+			case webrtc.PeerConnectionStateFailed,
+				webrtc.PeerConnectionStateClosed:
+				server.removePublisher(room)
+			}
+		})
+
 		completed := peerConnection.LocalDescription()
 
 		w.Header().Set("Content-Type", "application/json")
