@@ -104,11 +104,15 @@ func (s *Server) removePublisher(room *Room) {
 	s.removeRoom(room.ID, room)
 }
 
-func (room *Room) addViewer(pc *webrtc.PeerConnection) {
+func (room *Room) addViewer(pc *webrtc.PeerConnection) bool {
 	room.mu.Lock()
 	defer room.mu.Unlock()
+	if room.closed {
+		return false
+	}
 
 	room.viewers[pc] = struct{}{}
+	return true
 }
 
 func (room *Room) removeViewer(pc *webrtc.PeerConnection) {

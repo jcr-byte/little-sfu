@@ -56,6 +56,34 @@ func TestRemovePublisherClosesConnectionsAndReleasesRoom(t *testing.T) {
 	}
 }
 
+func TestAddViewerDoesNotRegisterViewerAfterPublisherCleanup(t *testing.T) {
+	server := NewServer()
+	room, reserved := server.reserveRoom("test-room")
+	if !reserved {
+		t.Fatal("expected room reservation to succeed")
+	}
+
+	viewer, err := server.newPeerConnection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { viewer.Close() })
+
+	// A watch request may still hold the room after publisher cleanup.
+	server.removePublisher(room)
+	if accepted := room.addViewer(viewer); accepted {
+		t.Error("expected addViewer to return false for a closed room")
+	}
+
+	room.mu.RLock()
+	_, registered := room.viewers[viewer]
+	room.mu.RUnlock()
+
+	if registered {
+		t.Fatal("expected closed room to reject viewer registration")
+	}
+}
+
 func TestRemoveViewerClosesConnectionAndPreservesOtherViewers(t *testing.T) {
 	server := NewServer()
 	room, _ := server.reserveRoom("test-room")

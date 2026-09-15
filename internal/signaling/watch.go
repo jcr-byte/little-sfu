@@ -57,7 +57,11 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	room.addViewer(peerConnection)
+	if !room.addViewer(peerConnection) {
+		peerConnection.Close()
+		http.Error(w, "publisher is not ready", http.StatusConflict)
+		return
+	}
 
 	peerConnection.OnConnectionStateChange(func(state webrtc.PeerConnectionState) {
 		switch state {
