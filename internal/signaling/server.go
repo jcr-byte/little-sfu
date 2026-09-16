@@ -2,7 +2,10 @@ package signaling
 
 import (
 	"sync"
+	"time"
 
+	"github.com/pion/interceptor"
+	"github.com/pion/interceptor/pkg/intervalpli"
 	"github.com/pion/webrtc/v4"
 )
 
@@ -24,11 +27,39 @@ type Server struct {
 
 func NewServer() *Server {
 	return &Server{
-		rooms: make(map[string]*Room),
-		newPeerConnection: func() (*webrtc.PeerConnection, error) {
-			return webrtc.NewPeerConnection(webrtc.Configuration{})
-		},
+		rooms:             make(map[string]*Room),
+		newPeerConnection: newSFUPeerConnection,
 	}
+}
+
+func newSFUPeerConnection() (*webrtc.PeerConnection, error) {
+	mediaEngine := &webrtc.MediaEngine{}
+	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {
+		return nil, err
+	}
+
+	registry := &interceptor.Registry{}
+
+	// Enable RTCP sender and receiver reports.
+	if err := webrtc.ConfigureRTCPReports(registry); err != nil {
+		return nil, err
+	}
+
+	// Ask for a video keyframe approximately every three seconds.
+	pli, err := intervalpli.NewReceiverInterceptor(
+		intervalpli.GeneratorInterval(3 * time.Second),
+	)
+	if err != nil {
+		return nil, err
+	}
+	registry.Add(pli)
+
+	api := webrtc.NewAPI(
+		webrtc.WithMediaEngine(mediaEngine),
+		webrtc.WithInterceptorRegistry(registry),
+	)
+
+	return api.NewPeerConnection(webrtc.Configuration{})
 }
 
 func (s *Server) reserveRoom(roomID string) (*Room, bool) {
