@@ -6,6 +6,7 @@ import (
 	"errors"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -108,7 +109,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Prepare to wait for ICE gathering.
-	gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
+	gatherComplete := server.gatheringComplete(peerConnection)
 
 	// Apply the server's SDP answer.
 	err = peerConnection.SetLocalDescription(answer)
@@ -118,7 +119,10 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Wait for ICE gathering or request cancellation.
+	timer := time.NewTimer(server.gatheringTimeout)
+	defer timer.Stop()
+
+	// Wait for ICE gathering, timeout, or request cancellation.
 	select {
 	case <-gatherComplete:
 		completed := peerConnection.LocalDescription()
@@ -128,6 +132,10 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 			room.removeViewer(peerConnection)
 			log.Printf("failed to write viewer SDP answer: %v", err)
 		}
+
+	case <-timer.C:
+		room.removeViewer(peerConnection)
+		http.Error(w, "ICE gathering timed out", http.StatusGatewayTimeout)
 
 	case <-r.Context().Done():
 		room.removeViewer(peerConnection)
