@@ -387,18 +387,52 @@ func TestPublishHandlerStopsWhenRequestIsCancelled(t *testing.T) {
 	assertRoomReleased(t, server, "test-room")
 }
 
-func TestPublishHandlerStopsWhenRequestDeadlineExpires(t *testing.T) {
+func TestPublishHandlerTimesOutAndReleasesResources(t *testing.T) {
 	server := NewServer()
+	server.gatheringTimeout = 20 * time.Millisecond
+
+	// Simulate ICE gathering that never completes.
+	neverComplete := make(chan struct{})
+	server.gatheringComplete = func(*webrtc.PeerConnection) <-chan struct{} {
+		return neverComplete
+	}
+
+	// Keep the connection so we can verify that the handler closes it.
+	pc, err := server.newPeerConnection()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		pc.Close()
+	})
+	server.newPeerConnection = func() (*webrtc.PeerConnection, error) {
+		return pc, nil
+	}
+
 	request, _ := newValidPublishRequest(t, "test-room")
-	ctx, cancel := context.WithDeadline(request.Context(), time.Now().Add(-time.Second))
+
+	// The request has no deadline. Cancellation is only a safety net
+	// so a broken server timeout doesn't leave the test hanging.
+	ctx, cancel := context.WithCancel(request.Context())
 	defer cancel()
+	watchdog := time.AfterFunc(5*time.Second, cancel)
+	defer watchdog.Stop()
+
 	request = request.WithContext(ctx)
 	response := httptest.NewRecorder()
 
 	server.PublishHandler(response, request)
 
+	if ctx.Err() != nil {
+		t.Fatal("handler did not finish before the test safety cancellation")
+	}
+
 	assertResponse(t, response, http.StatusGatewayTimeout, "ICE gathering timed out\n")
 	assertRoomReleased(t, server, "test-room")
+
+	if got := pc.ConnectionState(); got != webrtc.PeerConnectionStateClosed {
+		t.Errorf("connection state = %s, want closed", got)
+	}
 }
 
 func TestPublishHandlerReleasesRoomWhenPublisherCloses(t *testing.T) {

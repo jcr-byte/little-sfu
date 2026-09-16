@@ -9,6 +9,7 @@ import (
 	"mime"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/pion/webrtc/v4"
 )
@@ -260,7 +261,7 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	gatherComplete := webrtc.GatheringCompletePromise(peerConnection)
+	gatherComplete := server.gatheringComplete(peerConnection)
 
 	// set local description
 	err = peerConnection.SetLocalDescription(answer)
@@ -271,6 +272,9 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to set local description", http.StatusInternalServerError)
 		return
 	}
+
+	timer := time.NewTimer(server.gatheringTimeout)
+	defer timer.Stop()
 
 	select {
 	case <-gatherComplete:
@@ -294,6 +298,10 @@ func (server *Server) PublishHandler(w http.ResponseWriter, r *http.Request) {
 		if err := json.NewEncoder(w).Encode(completed); err != nil {
 			log.Printf("failed to write SDP answer for room %q: %v", roomID, err)
 		}
+	case <-timer.C:
+		peerConnection.Close()
+		server.removeRoom(roomID, room)
+		http.Error(w, "ICE gathering timed out", http.StatusGatewayTimeout)
 	case <-r.Context().Done():
 		peerConnection.Close()
 		server.removeRoom(roomID, room)

@@ -23,12 +23,16 @@ type Server struct {
 	mu                sync.RWMutex
 	rooms             map[string]*Room
 	newPeerConnection func() (*webrtc.PeerConnection, error)
+	gatheringTimeout  time.Duration
+	gatheringComplete func(*webrtc.PeerConnection) <-chan struct{}
 }
 
 func NewServer() *Server {
 	return &Server{
 		rooms:             make(map[string]*Room),
 		newPeerConnection: newSFUPeerConnection,
+		gatheringTimeout:  10 * time.Second,
+		gatheringComplete: webrtc.GatheringCompletePromise,
 	}
 }
 
