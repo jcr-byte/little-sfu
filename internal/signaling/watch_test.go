@@ -96,6 +96,56 @@ func TestWatchHandlerRejectsOversizedBody(t *testing.T) {
 	assertResponse(t, response, http.StatusRequestEntityTooLarge, "request body too large\n")
 }
 
+func TestWatchHandlerValidatesTrailingContent(t *testing.T) {
+	tests := []struct {
+		name       string
+		trailing   string
+		wantStatus int
+		wantBody   string
+	}{
+		{"second object", ` {"extra":"object"}`, http.StatusBadRequest, "request body must contain exactly one JSON object\n"},
+		{"invalid trailing content", " garbage", http.StatusBadRequest, "request body must contain exactly one JSON object\n"},
+		{"oversized trailing whitespace", strings.Repeat(" ", 64*1024), http.StatusRequestEntityTooLarge, "request body too large\n"},
+		{"trailing whitespace", " \n\t", http.StatusOK, ""},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			server := NewServer()
+			const roomID = "test-room"
+			room, _ := server.reserveRoom(roomID)
+			t.Cleanup(func() { server.removePublisher(room) })
+			room.audioTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+				MimeType: webrtc.MimeTypeOpus, ClockRate: 48000, Channels: 2,
+			}, "audio")
+			room.videoTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+				MimeType: webrtc.MimeTypeVP8, ClockRate: 90000,
+			}, "video")
+
+			_, offer := newValidPublishRequest(t, roomID)
+			offer.SDP = strings.ReplaceAll(offer.SDP, "a=sendonly", "a=recvonly")
+			body, err := json.Marshal(offer)
+			if err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPost, "/watch/"+roomID,
+				strings.NewReader(string(body)+test.trailing))
+			request.SetPathValue("room", roomID)
+			request.Header.Set("Content-Type", "application/json")
+			response := httptest.NewRecorder()
+
+			server.WatchHandler(response, request)
+
+			if response.Code != test.wantStatus {
+				t.Fatalf("expected status %d, got %d", test.wantStatus, response.Code)
+			}
+			if test.wantBody != "" && response.Body.String() != test.wantBody {
+				t.Errorf("expected body %q, got %q", test.wantBody, response.Body.String())
+			}
+		})
+	}
+}
+
 func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 	tests := []struct {
 		name       string

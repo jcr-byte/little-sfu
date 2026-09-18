@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"log"
 	"mime"
 	"net/http"
@@ -74,7 +75,8 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 
 	var offer webrtc.SessionDescription
 
-	err = json.NewDecoder(r.Body).Decode(&offer)
+	decoder := json.NewDecoder(r.Body)
+	err = decoder.Decode(&offer)
 	if err != nil {
 		var maxBytesErr *http.MaxBytesError
 		if errors.As(err, &maxBytesErr) {
@@ -83,6 +85,19 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
+		return
+	}
+
+	// Require the body to end after the offer, allowing trailing whitespace.
+	err = decoder.Decode(&struct{}{})
+	if err != io.EOF {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+
+		http.Error(w, "request body must contain exactly one JSON object", http.StatusBadRequest)
 		return
 	}
 
