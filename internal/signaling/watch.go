@@ -101,6 +101,11 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if offer.Type != webrtc.SDPTypeOffer {
+		http.Error(w, `type must be "offer"`, http.StatusBadRequest)
+		return
+	}
+
 	// Create the server side of the viewer connection
 	peerConnection, err := server.newPeerConnection()
 	if err != nil {
