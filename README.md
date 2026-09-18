@@ -5,26 +5,42 @@ A small selective forwarding unit built from scratch with
 WebRTC signaling, RTP/RTCP forwarding, media negotiation, and peer lifecycle
 management.
 
-The first release will let one publisher send audio and video into a room while
-multiple viewers watch in the browser with sub-second latency. The server will
-forward RTP packets as they arrive, without transcoding or HLS segmenting.
+The first release lets one publisher send audio and video into a room while
+multiple viewers watch in the browser. The server forwards RTP packets as they
+arrive, without transcoding or HLS segmenting.
 
 ## Project status
 
-Current milestone: **v0.1 — one-to-many broadcast**
-
-The repository is currently in the planning stage. The architecture and roadmap are
-documented, but the server has not been implemented yet.
-
-- [ ] Create the Go server and browser demo
-- [ ] Accept a publisher connection
-- [ ] Forward audio and video to one viewer
-- [ ] Support multiple viewers and independent rooms
-- [ ] Clean up disconnected peers and rooms
-- [ ] Add a temporary periodic PLI for late viewers
-- [ ] Test, document, and tag v0.1.0
+Current milestone: **v0.1 — one-to-many broadcast**. The Go server, browser demo,
+RTP forwarding, room cleanup, periodic keyframe requests, and automated tests are
+implemented. The 30-minute viewing and goroutine-leak checks remain before
+tagging `v0.1.0`.
 
 The target date for v0.1.0 is **September 20, 2026**.
+
+## Run locally
+
+Install Go 1.27 or newer. From the repository root, start the server:
+
+```sh
+go run ./cmd/sfu
+```
+
+Open <http://localhost:8080/?room=demo> in a browser. In one tab, allow camera
+and microphone access and click **Publish**. After publishing starts, open the same
+URL in another tab and click **Watch**. The viewer should receive both audio and
+video. Use another room ID in the URL to start an independent broadcast. Press
+Ctrl+C in the terminal to stop the server and close active connections.
+
+Run the automated checks with:
+
+```sh
+go test -race ./...
+```
+
+The server loads `internal/web/index.html` using a path relative to its working
+directory, so start it from the repository root. Browser camera and microphone
+access requires permission; `localhost` is treated as a secure context by browsers.
 
 ## Learning objectives
 
@@ -56,18 +72,44 @@ The initial version uses one shared outgoing track for all viewers. Later milest
 add multi-party publishing, packet-loss recovery, simulcast, and congestion control.
 See [ARCHITECTURE.md](ARCHITECTURE.md) for the detailed design.
 
-## Planned interface
+## Signaling API
 
-The planned v0.1 signaling API is:
+The v0.1 signaling API is:
 
 | Method | Path | Purpose |
 |---|---|---|
 | `POST` | `/publish/{room}` | Negotiate the room's publisher connection |
 | `POST` | `/watch/{room}` | Negotiate a receive-only viewer connection |
 
-Both endpoints will accept an SDP offer and return an SDP answer after ICE gathering
-completes. Installation and usage instructions will be added when the first runnable
-release is available.
+Both endpoints accept a JSON SDP offer and return a JSON SDP answer after ICE
+gathering completes. The browser demo performs this exchange; a caller must first
+create and gather its own WebRTC offer. A request body has this shape:
+
+```json
+{"type":"offer","sdp":"v=0\r\n..."}
+```
+
+Use `Content-Type: application/json`. A successful response has status `200`, the
+same content type, and a body shaped like
+`{"type":"answer","sdp":"v=0\r\n..."}`. Room IDs must contain 1–64 ASCII
+letters, digits, underscores, or hyphens. Request bodies are limited to 64 KiB.
+
+Publishing to an occupied room returns `409 Conflict`. Watching before the
+publisher sends both audio and video also returns `409 Conflict`; completing
+`/publish/{room}` alone does not make the room ready. Error responses are plain
+text.
+
+## Current limits
+
+- One publisher per room, sending Opus audio and VP8 video; viewers only receive.
+- No renegotiation. If the publisher stops, viewers must reconnect after a new
+  publisher starts in that room.
+- No authentication, recording, persistence, or distributed deployment.
+- No STUN or TURN server configuration. Localhost is the supported demo setup;
+  connectivity across other networks is not established.
+- A periodic PLI asks the publisher for a video keyframe about every three
+  seconds. This is a temporary late-join workaround, not a measured start-time
+  guarantee.
 
 ## Development milestones
 
