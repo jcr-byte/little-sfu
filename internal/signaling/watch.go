@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"mime"
 	"net/http"
 	"time"
 
@@ -43,6 +44,12 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		http.Error(w, "Content-Type must be application/json", http.StatusUnsupportedMediaType)
+		return
+	}
+
 	room, exists := server.findRoom(roomID)
 	if !exists {
 		http.Error(w, "publisher is not ready", http.StatusConflict)
@@ -64,7 +71,7 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 	// Decode the viewer's SDP offer
 	var offer webrtc.SessionDescription
 
-	err := json.NewDecoder(r.Body).Decode(&offer)
+	err = json.NewDecoder(r.Body).Decode(&offer)
 	if err != nil {
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return

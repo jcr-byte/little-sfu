@@ -27,6 +27,43 @@ func TestWatchHandlerRejectsInvalidRoomID(t *testing.T) {
 	assertResponse(t, response, http.StatusBadRequest, "invalid room ID\n")
 }
 
+func TestWatchHandlerRejectsUnsupportedContentType(t *testing.T) {
+	server := NewServer()
+	const roomID = "test-room"
+	room, _ := server.reserveRoom(roomID)
+	t.Cleanup(func() { server.removePublisher(room) })
+
+	room.audioTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "audio")
+	room.videoTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeVP8,
+		ClockRate: 90000,
+	}, "video")
+
+	_, offer := newValidPublishRequest(t, roomID)
+	offer.SDP = strings.ReplaceAll(offer.SDP, "a=sendonly", "a=recvonly")
+	body, err := json.Marshal(offer)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/watch/"+roomID,
+		strings.NewReader(string(body)),
+	)
+	request.SetPathValue("room", roomID)
+	request.Header.Set("Content-Type", "text/plain")
+	response := httptest.NewRecorder()
+
+	server.WatchHandler(response, request)
+
+	assertResponse(t, response, http.StatusUnsupportedMediaType, "Content-Type must be application/json\n")
+}
+
 func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 	tests := []struct {
 		name       string
