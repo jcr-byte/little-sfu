@@ -12,6 +12,21 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
+func TestWatchHandlerRejectsInvalidRoomID(t *testing.T) {
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/watch/test.room",
+		strings.NewReader(`{"sdp":"offer-sdp","type":"offer"}`),
+	)
+	request.SetPathValue("room", "test.room")
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	NewServer().WatchHandler(response, request)
+
+	assertResponse(t, response, http.StatusBadRequest, "invalid room ID\n")
+}
+
 func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 	tests := []struct {
 		name       string

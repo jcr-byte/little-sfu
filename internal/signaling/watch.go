@@ -21,8 +21,27 @@ func drainRTCP(sender *webrtc.RTPSender) {
 }
 
 func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
-	// Find the requested room
+	// Validate the room ID before looking up the room.
 	roomID := r.PathValue("room")
+
+	if len(roomID) < 1 || len(roomID) > 64 {
+		http.Error(w, "invalid room ID", http.StatusBadRequest)
+		return
+	}
+
+	for _, char := range roomID {
+		isAllowed :=
+			('a' <= char && char <= 'z') ||
+				('A' <= char && char <= 'Z') ||
+				('0' <= char && char <= '9') ||
+				char == '-' ||
+				char == '_'
+
+		if !isAllowed {
+			http.Error(w, "invalid room ID", http.StatusBadRequest)
+			return
+		}
+	}
 
 	room, exists := server.findRoom(roomID)
 	if !exists {
