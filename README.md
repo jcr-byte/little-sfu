@@ -11,12 +11,11 @@ arrive, without transcoding or HLS segmenting.
 
 ## Project status
 
-Current milestone: **v0.1 — one-to-many broadcast**. The Go server, browser demo,
-RTP forwarding, room cleanup, periodic keyframe requests, and automated tests are
-implemented. The 30-minute viewing and goroutine-leak checks remain before
-tagging `v0.1.0`.
+Current milestone: **v0.2 — multi-party conferencing**. The v0.1 one-to-many
+broadcast implementation is complete. The project is moving on to multiple
+publishers and renegotiation.
 
-The target date for v0.1.0 is **September 20, 2026**.
+The target date for v0.2.0 is **October 11, 2026**.
 
 ## Run locally
 

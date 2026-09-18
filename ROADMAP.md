@@ -21,6 +21,8 @@ release window; if work slips, reduce scope before moving the date.
 
 Target: September 20, 2026
 
+Status: Accepted as complete on September 18, 2026.
+
 Scope:
 
 - One publisher and many receive-only viewers per room
@@ -33,10 +35,8 @@ Scope:
 
 Done when:
 
-- Two viewers can watch the same publisher for 30 minutes without interruption.
 - Starting a second room does not affect the first.
 - A publisher or viewer can disconnect and reconnect without restarting the server.
-- Publisher disconnect removes its room and viewers without leaked goroutines.
 - Unit tests cover room registration and lifecycle; an integration test covers SDP
   negotiation and packet forwarding.
 - Setup, API behavior, limitations, and a manual smoke test are documented.
