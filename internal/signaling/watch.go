@@ -68,11 +68,20 @@ func (server *Server) WatchHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decode the viewer's SDP offer
+	// Limit the request body before decoding the viewer's SDP offer.
+	const maxBodyBytes = 64 * 1024
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+
 	var offer webrtc.SessionDescription
 
 	err = json.NewDecoder(r.Body).Decode(&offer)
 	if err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "request body too large", http.StatusRequestEntityTooLarge)
+			return
+		}
+
 		http.Error(w, "invalid JSON", http.StatusBadRequest)
 		return
 	}

@@ -64,6 +64,38 @@ func TestWatchHandlerRejectsUnsupportedContentType(t *testing.T) {
 	assertResponse(t, response, http.StatusUnsupportedMediaType, "Content-Type must be application/json\n")
 }
 
+func TestWatchHandlerRejectsOversizedBody(t *testing.T) {
+	server := NewServer()
+	const roomID = "test-room"
+	room, _ := server.reserveRoom(roomID)
+	t.Cleanup(func() { server.removePublisher(room) })
+
+	room.audioTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "audio")
+	room.videoTrack = newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeVP8,
+		ClockRate: 90000,
+	}, "video")
+
+	// The SDP field alone fills the limit; the JSON wrapper exceeds it.
+	body := `{"type":"offer","sdp":"` + strings.Repeat("a", 64*1024) + `"}`
+	request := httptest.NewRequest(
+		http.MethodPost,
+		"/watch/"+roomID,
+		strings.NewReader(body),
+	)
+	request.SetPathValue("room", roomID)
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+
+	server.WatchHandler(response, request)
+
+	assertResponse(t, response, http.StatusRequestEntityTooLarge, "request body too large\n")
+}
+
 func TestWatchHandlerRejectsUnavailablePublisher(t *testing.T) {
 	tests := []struct {
 		name       string
