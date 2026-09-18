@@ -36,6 +36,19 @@ func NewServer() *Server {
 	}
 }
 
+func (s *Server) Close() {
+	s.mu.RLock()
+	rooms := make([]*Room, 0, len(s.rooms))
+	for _, room := range s.rooms {
+		rooms = append(rooms, room)
+	}
+	s.mu.RUnlock()
+
+	for _, room := range rooms {
+		s.removePublisher(room)
+	}
+}
+
 func newSFUPeerConnection() (*webrtc.PeerConnection, error) {
 	mediaEngine := &webrtc.MediaEngine{}
 	if err := mediaEngine.RegisterDefaultCodecs(); err != nil {

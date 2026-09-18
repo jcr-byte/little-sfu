@@ -6,6 +6,39 @@ import (
 	"github.com/pion/webrtc/v4"
 )
 
+func TestServerCloseCleansUpAllRooms(t *testing.T) {
+	server := NewServer()
+	publishers := make(map[string]*webrtc.PeerConnection)
+
+	for _, roomID := range []string{"first-room", "second-room"} {
+		room, reserved := server.reserveRoom(roomID)
+		if !reserved {
+			t.Fatalf("failed to reserve room %q", roomID)
+		}
+
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+
+		room.publisherPeerConnection = pc
+		publishers[roomID] = pc
+	}
+
+	server.Close()
+
+	for roomID, pc := range publishers {
+		if state := pc.ConnectionState(); state != webrtc.PeerConnectionStateClosed {
+			t.Errorf("room %q: publisher is %s, want closed", roomID, state)
+		}
+
+		if _, exists := server.findRoom(roomID); exists {
+			t.Errorf("room %q: still registered after shutdown", roomID)
+		}
+	}
+}
+
 func TestRemovePublisherClosesConnectionsAndReleasesRoom(t *testing.T) {
 	server := NewServer()
 	room, reserved := server.reserveRoom("test-room")
