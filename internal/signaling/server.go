@@ -29,8 +29,9 @@ type Server struct {
 }
 
 type Participant struct {
-	ID string
-	pc *webrtc.PeerConnection
+	ID             string
+	pc             *webrtc.PeerConnection
+	closeSignaling func() error
 }
 
 func NewServer() *Server {
@@ -48,6 +49,7 @@ func (s *Server) Close() {
 	for _, room := range s.rooms {
 		rooms = append(rooms, room)
 	}
+
 	s.mu.RUnlock()
 
 	for _, room := range rooms {
@@ -180,7 +182,7 @@ func (s *Server) removePublisher(room *Room) {
 		pc.Close()
 	}
 	for _, participant := range savedParticipants {
-		participant.pc.Close()
+		participant.close()
 	}
 	s.removeRoom(room.ID, room)
 }
@@ -211,7 +213,7 @@ func (s *Server) removeParticipant(room *Room, participant *Participant) {
 	room.mu.Unlock()
 
 	// Closing can trigger callbacks that need the room lock.
-	participant.pc.Close()
+	participant.close()
 }
 
 func (room *Room) addViewer(pc *webrtc.PeerConnection) bool {
@@ -234,4 +236,11 @@ func (room *Room) removeViewer(pc *webrtc.PeerConnection) {
 	if exists {
 		pc.Close()
 	}
+}
+
+func (p *Participant) close() {
+	if p.closeSignaling != nil {
+		p.closeSignaling()
+	}
+	p.pc.Close()
 }

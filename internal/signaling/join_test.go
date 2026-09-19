@@ -2,6 +2,8 @@ package signaling
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +13,53 @@ import (
 	"github.com/pion/webrtc/v4"
 	"golang.org/x/net/websocket"
 )
+
+func TestServerCloseClosesParticipantSignaling(t *testing.T) {
+	server := NewServer()
+	t.Cleanup(server.Close)
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /join/{room}", server.JoinHandler)
+	httpServer := httptest.NewServer(mux)
+	t.Cleanup(httpServer.Close)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	config, err := websocket.NewConfig(
+		"ws"+strings.TrimPrefix(httpServer.URL, "http")+"/join/test-room",
+		httpServer.URL,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := config.DialContext(ctx)
+	if err != nil {
+		t.Fatalf("connect participant signaling: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	deadline, _ := ctx.Deadline()
+	if err := client.SetDeadline(deadline); err != nil {
+		t.Fatal(err)
+	}
+
+	// Receiving the offer establishes that the participant has registered.
+	var offer webrtc.SessionDescription
+	if err := websocket.JSON.Receive(client, &offer); err != nil {
+		t.Fatalf("receive initial offer: %v", err)
+	}
+	if offer.Type != webrtc.SDPTypeOffer {
+		t.Fatalf("received description type %s, want offer", offer.Type)
+	}
+
+	server.Close()
+
+	var message webrtc.SessionDescription
+	err = websocket.JSON.Receive(client, &message)
+	if !errors.Is(err, io.EOF) {
+		t.Fatalf("expected server shutdown to close participant signaling, got %v", err)
+	}
+}
 
 func TestJoinHandlerAppliesParticipantAnswer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)

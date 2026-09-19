@@ -43,8 +43,9 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 		room := server.getOrCreateRoom(roomID)
 
 		participant := &Participant{
-			ID: uuid.NewString(),
-			pc: peerConnection,
+			ID:             uuid.NewString(),
+			pc:             peerConnection,
+			closeSignaling: conn.Close,
 		}
 
 		if !room.addParticipant(participant) {
