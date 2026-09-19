@@ -17,6 +17,7 @@ type Room struct {
 	videoTrack              *webrtc.TrackLocalStaticRTP
 	viewers                 map[*webrtc.PeerConnection]struct{}
 	closed                  bool
+	participants            map[string]*Participant
 }
 
 type Server struct {
@@ -25,6 +26,11 @@ type Server struct {
 	newPeerConnection func() (*webrtc.PeerConnection, error)
 	gatheringTimeout  time.Duration
 	gatheringComplete func(*webrtc.PeerConnection) <-chan struct{}
+}
+
+type Participant struct {
+	ID string
+	pc *webrtc.PeerConnection
 }
 
 func NewServer() *Server {
@@ -89,8 +95,9 @@ func (s *Server) reserveRoom(roomID string) (*Room, bool) {
 	}
 
 	room := &Room{
-		ID:      roomID,
-		viewers: make(map[*webrtc.PeerConnection]struct{}),
+		ID:           roomID,
+		viewers:      make(map[*webrtc.PeerConnection]struct{}),
+		participants: make(map[string]*Participant),
 	}
 	s.rooms[roomID] = room
 
@@ -138,6 +145,11 @@ func (s *Server) removePublisher(room *Room) {
 		savedViewers = append(savedViewers, pc)
 	}
 	clear(room.viewers)
+	savedParticipants := make([]*Participant, 0, len(room.participants))
+	for _, participant := range room.participants {
+		savedParticipants = append(savedParticipants, participant)
+	}
+	clear(room.participants)
 	room.audioTrack = nil
 	room.videoTrack = nil
 	room.mu.Unlock()
@@ -149,7 +161,39 @@ func (s *Server) removePublisher(room *Room) {
 	for _, pc := range savedViewers {
 		pc.Close()
 	}
+	for _, participant := range savedParticipants {
+		participant.pc.Close()
+	}
 	s.removeRoom(room.ID, room)
+}
+
+func (room *Room) addParticipant(participant *Participant) bool {
+	room.mu.Lock()
+	defer room.mu.Unlock()
+
+	if room.closed {
+		return false
+	}
+	if _, exists := room.participants[participant.ID]; exists {
+		return false
+	}
+
+	room.participants[participant.ID] = participant
+	return true
+}
+
+func (s *Server) removeParticipant(room *Room, participant *Participant) {
+	room.mu.Lock()
+	// A delayed callback must not remove a replacement with the same ID.
+	if room.participants[participant.ID] != participant {
+		room.mu.Unlock()
+		return
+	}
+	delete(room.participants, participant.ID)
+	room.mu.Unlock()
+
+	// Closing can trigger callbacks that need the room lock.
+	participant.pc.Close()
 }
 
 func (room *Room) addViewer(pc *webrtc.PeerConnection) bool {

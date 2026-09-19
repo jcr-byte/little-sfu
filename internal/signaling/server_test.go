@@ -9,6 +9,7 @@ import (
 func TestServerCloseCleansUpAllRooms(t *testing.T) {
 	server := NewServer()
 	publishers := make(map[string]*webrtc.PeerConnection)
+	participants := make(map[string]*Participant)
 
 	for _, roomID := range []string{"first-room", "second-room"} {
 		room, reserved := server.reserveRoom(roomID)
@@ -24,6 +25,17 @@ func TestServerCloseCleansUpAllRooms(t *testing.T) {
 
 		room.publisherPeerConnection = pc
 		publishers[roomID] = pc
+
+		participantPC, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { participantPC.Close() })
+		participant := &Participant{ID: "alice", pc: participantPC}
+		if !room.addParticipant(participant) {
+			t.Fatalf("room %q: failed to add participant", roomID)
+		}
+		participants[roomID] = participant
 	}
 
 	server.Close()
@@ -35,6 +47,9 @@ func TestServerCloseCleansUpAllRooms(t *testing.T) {
 
 		if _, exists := server.findRoom(roomID); exists {
 			t.Errorf("room %q: still registered after shutdown", roomID)
+		}
+		if state := participants[roomID].pc.ConnectionState(); state != webrtc.PeerConnectionStateClosed {
+			t.Errorf("room %q: participant is %s, want closed", roomID, state)
 		}
 	}
 }
@@ -151,6 +166,59 @@ func TestRemoveViewerClosesConnectionAndPreservesOtherViewers(t *testing.T) {
 		if !otherRegistered || otherViewer.ConnectionState() == webrtc.PeerConnectionStateClosed {
 			t.Errorf("%s: cleanup affected another viewer", step)
 		}
+	}
+}
+
+func TestRemoveParticipantPreservesOtherParticipantsAndRoom(t *testing.T) {
+	server := NewServer()
+	room, reserved := server.reserveRoom("test-room")
+	if !reserved {
+		t.Fatal("expected room reservation to succeed")
+	}
+
+	newParticipant := func(id string) *Participant {
+		t.Helper()
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+		participant := &Participant{ID: id, pc: pc}
+		if !room.addParticipant(participant) {
+			t.Fatalf("failed to add participant %q", id)
+		}
+		return participant
+	}
+
+	alice := newParticipant("alice")
+	bob := newParticipant("bob")
+	bobStateBefore := bob.pc.ConnectionState()
+
+	server.removeParticipant(room, alice)
+
+	if state := alice.pc.ConnectionState(); state != webrtc.PeerConnectionStateClosed {
+		t.Errorf("Alice's connection is %s, want closed", state)
+	}
+	room.mu.RLock()
+	_, alicePresent := room.participants[alice.ID]
+	remainingBob := room.participants[bob.ID]
+	roomClosed := room.closed
+	room.mu.RUnlock()
+
+	if alicePresent {
+		t.Error("Alice is still registered after leaving")
+	}
+	if remainingBob != bob {
+		t.Error("Alice leaving removed or replaced Bob")
+	}
+	if state := bob.pc.ConnectionState(); state != bobStateBefore {
+		t.Errorf("Bob's connection changed from %s to %s", bobStateBefore, state)
+	}
+	if roomClosed {
+		t.Error("Alice leaving closed the room")
+	}
+	if found, exists := server.findRoom(room.ID); !exists || found != room {
+		t.Error("Alice leaving removed or replaced the room")
 	}
 }
 
