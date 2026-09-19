@@ -104,6 +104,24 @@ func (s *Server) reserveRoom(roomID string) (*Room, bool) {
 	return room, true
 }
 
+func (s *Server) getOrCreateRoom(roomID string) *Room {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if room, exists := s.rooms[roomID]; exists {
+		return room
+	}
+
+	room := &Room{
+		ID:           roomID,
+		viewers:      make(map[*webrtc.PeerConnection]struct{}),
+		participants: make(map[string]*Participant),
+	}
+	s.rooms[roomID] = room
+
+	return room
+}
+
 func (s *Server) findRoom(roomID string) (*Room, bool) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
