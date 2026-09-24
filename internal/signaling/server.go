@@ -29,9 +29,11 @@ type Server struct {
 }
 
 type Participant struct {
-	ID             string
-	pc             *webrtc.PeerConnection
-	closeSignaling func() error
+	ID              string
+	pc              *webrtc.PeerConnection
+	closeSignaling  func() error
+	negotiator      *Negotiator
+	publishedTracks []*webrtc.TrackLocalStaticRTP
 }
 
 func NewServer() *Server {

@@ -11,6 +11,7 @@ import (
 )
 
 func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
+	// Reject invalid room IDs while we can still return an HTTP error.
 	roomID := r.PathValue("room")
 
 	if len(roomID) < 1 || len(roomID) > 64 {
@@ -32,6 +33,7 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	// Keep signaling open so tracks can be negotiated as the room changes.
 	websocket.Handler(func(conn *websocket.Conn) {
 		peerConnection, err := server.newPeerConnection()
 		if err != nil {
@@ -40,6 +42,7 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 		}
 		defer peerConnection.Close()
 
+		// Tie room membership to this signaling session; deferred cleanup handles exits.
 		room := server.getOrCreateRoom(roomID)
 
 		participant := &Participant{
@@ -48,12 +51,7 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 			closeSignaling: conn.Close,
 		}
 
-		if !room.addParticipant(participant) {
-			log.Printf("room %q failed to register participant", roomID)
-			return
-		}
-		defer server.removeParticipant(room, participant)
-
+		// Offer to receive audio and video so the participant can publish both.
 		_, err = peerConnection.AddTransceiverFromKind(
 			webrtc.RTPCodecTypeAudio,
 			webrtc.RTPTransceiverInit{
@@ -84,10 +82,34 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 
 			select {
 			case <-gatherComplete:
-				// The completed description includes the gathered ICE candidates.
 				return websocket.JSON.Send(conn, peerConnection.LocalDescription())
 			case <-ctx.Done():
 				return ctx.Err()
+			}
+		})
+
+		participant.negotiator = negotiator
+
+		// Handle each incoming track when its first RTP packets arrive.
+		peerConnection.OnTrack(func(remote *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
+			// Prefix IDs so different publishers can use the same track and stream IDs.
+			outgoing, err := webrtc.NewTrackLocalStaticRTP(
+				remote.Codec().RTPCodecCapability,
+				participant.ID+"-"+remote.ID(),
+				participant.ID+"-"+remote.StreamID(),
+			)
+			if err != nil {
+				log.Printf("room %q failed to create outgoing track: %v", roomID, err)
+				return
+			}
+
+			if err := room.publishTrack(participant, outgoing); err != nil {
+				log.Printf("room %q failed to publish track: %v", roomID, err)
+			}
+
+			// Keep forwarding for successful subscribers even if another failed.
+			if err := forwardRTP(remote, outgoing); err != nil {
+				log.Printf("room %q stopped forwarding track %q: %v", roomID, remote.ID(), err)
 			}
 		})
 
@@ -96,12 +118,20 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		if !room.addParticipant(participant) {
+			log.Printf("room %q failed to register participant", roomID)
+			return
+		}
+		defer server.removeParticipant(room, participant)
+
+		// Process answers for both the initial connection and later track changes.
 		for {
 			var answer webrtc.SessionDescription
 			if err := websocket.JSON.Receive(conn, &answer); err != nil {
 				return
 			}
 
+			// The server creates offers, so clients must respond with answers.
 			if answer.Type != webrtc.SDPTypeAnswer {
 				log.Printf("room %q expected answer, received %s", roomID, answer.Type)
 				return
