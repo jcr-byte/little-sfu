@@ -3,6 +3,7 @@ package signaling
 import (
 	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -233,10 +234,33 @@ func (s *Server) removeParticipant(room *Room, participant *Participant) {
 		return
 	}
 	delete(room.participants, participant.ID)
+
+	tracks := append(
+		[]*webrtc.TrackLocalStaticRTP(nil),
+		participant.publishedTracks...,
+	)
+
+	recipients := make([]*Participant, 0, len(room.participants))
+	for _, remaining := range room.participants {
+		recipients = append(recipients, remaining)
+	}
+
 	room.mu.Unlock()
 
-	// Closing can trigger callbacks that need the room lock.
 	participant.close()
+
+	if len(tracks) == 0 {
+		return
+	}
+
+	for _, recipient := range recipients {
+		if err := recipient.negotiator.RemoveTracks(tracks); err != nil {
+			log.Printf(
+				"room %q failed to remove participant %q's tracks from %q: %v",
+				room.ID, participant.ID, recipient.ID, err,
+			)
+		}
+	}
 }
 
 func (room *Room) addViewer(pc *webrtc.PeerConnection) bool {

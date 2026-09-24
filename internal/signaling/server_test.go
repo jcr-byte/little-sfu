@@ -221,6 +221,74 @@ func TestAddParticipantSubscribesToExistingTracks(t *testing.T) {
 	t.Fatal("Bob joined without subscribing to Alice's existing audio")
 }
 
+func TestRemoveParticipantRemovesTheirTracksFromOtherParticipants(t *testing.T) {
+	server := NewServer()
+	t.Cleanup(server.Close)
+	room := server.getOrCreateRoom("test-room")
+
+	newParticipant := func(id string) *Participant {
+		t.Helper()
+
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+
+		return &Participant{
+			ID: id,
+			pc: pc,
+			negotiator: NewNegotiator(
+				pc,
+				func(webrtc.SessionDescription) error { return nil },
+			),
+		}
+	}
+
+	alice := newParticipant("alice")
+	if err := room.addParticipant(alice); err != nil {
+		t.Fatalf("add Alice: %v", err)
+	}
+
+	audio := newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "alice-audio")
+
+	if err := room.publishTrack(alice, audio); err != nil {
+		t.Fatalf("publish Alice's audio: %v", err)
+	}
+
+	bob := newParticipant("bob")
+	if err := room.addParticipant(bob); err != nil {
+		t.Fatalf("add Bob: %v", err)
+	}
+
+	hasAliceAudio := func() bool {
+		for _, sender := range bob.pc.GetSenders() {
+			if sender.Track() == audio {
+				return true
+			}
+		}
+		return false
+	}
+
+	// Ensure removal cannot pass simply because Bob never subscribed.
+	if !hasAliceAudio() {
+		t.Fatal("setup: Bob is not subscribed to Alice's audio")
+	}
+
+	server.removeParticipant(room, alice)
+
+	if hasAliceAudio() {
+		t.Error("Bob still has Alice's audio attached after Alice left")
+	}
+	if bob.pc.ConnectionState() == webrtc.PeerConnectionStateClosed {
+		t.Error("removing Alice's audio closed Bob's connection")
+	}
+}
+
 func TestRemoveParticipantPreservesOtherParticipantsAndRoom(t *testing.T) {
 	server := NewServer()
 	room, reserved := server.reserveRoom("test-room")

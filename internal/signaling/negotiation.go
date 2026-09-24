@@ -79,3 +79,28 @@ func (n *Negotiator) requestNegotiationLocked() error {
 	n.awaitingAnswer = true
 	return n.sendOffer(offer)
 }
+
+func (n *Negotiator) RemoveTracks(tracks []*webrtc.TrackLocalStaticRTP) error {
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	changed := false
+	for _, sender := range n.pc.GetSenders() {
+		for _, track := range tracks {
+			if sender.Track() != track {
+				continue
+			}
+
+			if err := n.pc.RemoveTrack(sender); err != nil {
+				return err
+			}
+			changed = true
+			break
+		}
+	}
+
+	if !changed {
+		return nil
+	}
+	return n.requestNegotiationLocked()
+}
