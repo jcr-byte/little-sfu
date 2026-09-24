@@ -1,6 +1,8 @@
 package signaling
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -189,19 +191,38 @@ func (s *Server) removePublisher(room *Room) {
 	s.removeRoom(room.ID, room)
 }
 
-func (room *Room) addParticipant(participant *Participant) bool {
+// A subscription error can occur after registration; the caller must clean up
+// the participant when joining fails.
+func (room *Room) addParticipant(participant *Participant) error {
 	room.mu.Lock()
-	defer room.mu.Unlock()
 
 	if room.closed {
-		return false
+		room.mu.Unlock()
+		return errors.New("room is closed")
 	}
 	if _, exists := room.participants[participant.ID]; exists {
-		return false
+		room.mu.Unlock()
+		return errors.New("participant already exists")
 	}
 
 	room.participants[participant.ID] = participant
-	return true
+
+	var tracks []*webrtc.TrackLocalStaticRTP
+	for _, existing := range room.participants {
+		if existing == participant {
+			continue
+		}
+		tracks = append(tracks, existing.publishedTracks...)
+	}
+	room.mu.Unlock()
+
+	// Negotiation may wait for ICE gathering or write to signaling.
+	for _, track := range tracks {
+		if err := participant.negotiator.AddTrack(track); err != nil {
+			return fmt.Errorf("subscribe to existing track: %w", err)
+		}
+	}
+	return nil
 }
 
 func (s *Server) removeParticipant(room *Room, participant *Participant) {

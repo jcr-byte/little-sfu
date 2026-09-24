@@ -32,8 +32,8 @@ func TestServerCloseCleansUpAllRooms(t *testing.T) {
 		}
 		t.Cleanup(func() { participantPC.Close() })
 		participant := &Participant{ID: "alice", pc: participantPC}
-		if !room.addParticipant(participant) {
-			t.Fatalf("room %q: failed to add participant", roomID)
+		if err := room.addParticipant(participant); err != nil {
+			t.Fatalf("room %q: failed to add participant: %v", roomID, err)
 		}
 		participants[roomID] = participant
 	}
@@ -169,6 +169,58 @@ func TestRemoveViewerClosesConnectionAndPreservesOtherViewers(t *testing.T) {
 	}
 }
 
+func TestAddParticipantSubscribesToExistingTracks(t *testing.T) {
+	server := NewServer()
+	t.Cleanup(server.Close)
+	room := server.getOrCreateRoom("test-room")
+
+	newParticipant := func(id string) *Participant {
+		t.Helper()
+
+		pc, err := server.newPeerConnection()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { pc.Close() })
+
+		return &Participant{
+			ID: id,
+			pc: pc,
+			negotiator: NewNegotiator(
+				pc,
+				func(webrtc.SessionDescription) error { return nil },
+			),
+		}
+	}
+
+	alice := newParticipant("alice")
+	if err := room.addParticipant(alice); err != nil {
+		t.Fatalf("failed to add Alice: %v", err)
+	}
+
+	audio := newWatchTestTrack(t, webrtc.RTPCodecCapability{
+		MimeType:  webrtc.MimeTypeOpus,
+		ClockRate: 48000,
+		Channels:  2,
+	}, "alice-audio")
+
+	if err := room.publishTrack(alice, audio); err != nil {
+		t.Fatalf("publish Alice's audio: %v", err)
+	}
+
+	bob := newParticipant("bob")
+	if err := room.addParticipant(bob); err != nil {
+		t.Fatalf("failed to add Bob: %v", err)
+	}
+
+	for _, sender := range bob.pc.GetSenders() {
+		if sender.Track() == audio {
+			return
+		}
+	}
+	t.Fatal("Bob joined without subscribing to Alice's existing audio")
+}
+
 func TestRemoveParticipantPreservesOtherParticipantsAndRoom(t *testing.T) {
 	server := NewServer()
 	room, reserved := server.reserveRoom("test-room")
@@ -184,8 +236,8 @@ func TestRemoveParticipantPreservesOtherParticipantsAndRoom(t *testing.T) {
 		}
 		t.Cleanup(func() { pc.Close() })
 		participant := &Participant{ID: id, pc: pc}
-		if !room.addParticipant(participant) {
-			t.Fatalf("failed to add participant %q", id)
+		if err := room.addParticipant(participant); err != nil {
+			t.Fatalf("failed to add participant %q: %v", id, err)
 		}
 		return participant
 	}

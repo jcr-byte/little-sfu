@@ -118,11 +118,11 @@ func (server *Server) JoinHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if !room.addParticipant(participant) {
-			log.Printf("room %q failed to register participant", roomID)
+		defer server.removeParticipant(room, participant)
+		if err := room.addParticipant(participant); err != nil {
+			log.Printf("room %q failed to register participant: %v", roomID, err)
 			return
 		}
-		defer server.removeParticipant(room, participant)
 
 		// Process answers for both the initial connection and later track changes.
 		for {
