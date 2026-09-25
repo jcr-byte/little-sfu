@@ -9,11 +9,13 @@
     <h1>Little SFU</h1>
     <p>The server is running.</p>
 
-    <button id="publish">Publish</button>
+    <button id="join">Join</button>
     <button id="watch">Watch</button>
     <video id="remote-video" autoplay playsinline controls></video>
 
-    <script>
+    <script type="module">
+      import { createOfferHandler } from "/signaling.mjs";
+
       // wait for ice gathering helper function
       function waitForIceGathering(peerConnection) {
         if (peerConnection.iceGatheringState === "complete") {
@@ -36,38 +38,83 @@
         });
       }
 
-      // publish button handler
-      document.querySelector("#publish").addEventListener("click", async () => {
-        const stream = await navigator.mediaDevices.getUserMedia({
+      // join button handler
+      const joinButton = document.querySelector("#join");
+
+      joinButton.addEventListener("click", async () => {
+        joinButton.disabled = true;
+        
+        let stream;
+        let peerConnection;
+        let socket;
+
+        function cleanup() {
+          if (socket) {
+            socket.onclose = null;
+            socket.close();
+          }
+
+          peerConnection?.close();
+          stream?.getTracks().forEach((track) => track.stop());
+
+          joinButton.disabled = false;
+        }
+
+        function fail(error) {
+          console.error("Join failed:", error);
+          cleanup()
+        }
+        
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: true,
         });
 
-        const peerConnection = new RTCPeerConnection();
+        peerConnection = new RTCPeerConnection();
 
         for (const track of stream.getTracks()) {
           peerConnection.addTrack(track, stream);
         }
 
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        await waitForIceGathering(peerConnection);
-
-        console.log(peerConnection.localDescription);
-
         const roomID = new URLSearchParams(location.search).get("room") || "demo";
-        const body = JSON.stringify(peerConnection.localDescription)
-        
-        const res = await fetch(`/publish/${roomID}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: body
+
+        const url = new URL(`/join/${encodeURIComponent(roomID)}`, location.href);
+        url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
+        socket = new WebSocket(url);
+
+        const handleOffer = createOfferHandler({
+          pc: peerConnection,
+          waitForIceGathering,
+          sendAnswer(answer) {
+            if (socket.readyState != WebSocket.OPEN) {
+              throw new Error("Signaling connection is closed");
+            }
+
+            socket.send(JSON.stringify(answer));
+          },
         });
 
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json();
-        await peerConnection.setRemoteDescription(data);
-      });
+        socket.onmessage = async (event) => {
+          try {
+            const offer = JSON.parse(event.data);
+
+            if (offer.type !== "offer") {
+              throw new Error(`Expected offer, received ${offer.type}`);
+            }
+
+            await handleOffer(offer);
+          } catch (error) {
+            fail(error);
+          }
+        };
+
+        socket.onerror = () => fail(new Error("WebSocket connection failed"));
+        socket.onclose = cleanup;
+      } catch (error) {
+        fail(error);
+      }
+    });
 
       // watch button handler
       document.querySelector("#watch").addEventListener("click", async () => {

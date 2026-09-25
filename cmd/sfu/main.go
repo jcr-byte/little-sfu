@@ -26,6 +26,12 @@ func main() {
 
 	serveMux.HandleFunc("POST /publish/{room}", server.PublishHandler)
 	serveMux.HandleFunc("POST /watch/{room}", server.WatchHandler)
+	serveMux.HandleFunc("GET /join/{room}", server.JoinHandler)
+
+	serveMux.HandleFunc("GET /signaling.mjs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		http.ServeFile(w, r, "internal/web/signaling.mjs")
+	})
 
 	httpServer := &http.Server{
 		Addr:    ":8080",
