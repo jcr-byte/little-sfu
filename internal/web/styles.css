@@ -21,6 +21,7 @@
     --color-slate-500: oklch(55.4% 0.046 257.417);
     --color-slate-700: oklch(37.2% 0.044 257.287);
     --color-slate-800: oklch(27.9% 0.041 260.031);
+    --color-slate-900: oklch(20.8% 0.042 265.755);
     --color-slate-950: oklch(12.9% 0.042 264.695);
     --spacing: 0.25rem;
     --text-xs: 0.75rem;
@@ -266,6 +267,9 @@
   .block {
     display: block;
   }
+  .contents {
+    display: contents;
+  }
   .flex {
     display: flex;
   }
@@ -300,6 +304,9 @@
   }
   .min-h-dvh {
     min-height: 100dvh;
+  }
+  .w-full {
+    width: 100%;
   }
   .max-w-\[270px\] {
     max-width: 270px;
@@ -407,14 +414,8 @@
   .bg-\[\#1b3c42\] {
     background-color: #1b3c42;
   }
-  .bg-\[\#1e3a52\] {
-    background-color: #1e3a52;
-  }
   .bg-\[\#401b28\] {
     background-color: #401b28;
-  }
-  .bg-\[\#30284b\] {
-    background-color: #30284b;
   }
   .bg-sky-400 {
     background-color: var(--color-sky-400);
@@ -424,6 +425,9 @@
   }
   .bg-slate-800 {
     background-color: var(--color-slate-800);
+  }
+  .bg-slate-900 {
+    background-color: var(--color-slate-900);
   }
   .bg-slate-950 {
     background-color: var(--color-slate-950);
@@ -439,9 +443,6 @@
   }
   .bg-\[radial-gradient\(ellipse_at_center\,\#162a32\,\#0f172a\)\] {
     background-image: radial-gradient(ellipse at center,#162a32,#0f172a);
-  }
-  .bg-\[radial-gradient\(ellipse_at_center\,\#172338\,\#0f172a\)\] {
-    background-image: radial-gradient(ellipse at center,#172338,#0f172a);
   }
   .fill-none {
     fill: none;
@@ -493,10 +494,6 @@
   }
   .font-sans {
     font-family: var(--font-sans);
-  }
-  .text-2xl {
-    font-size: var(--text-2xl);
-    line-height: var(--tw-leading, var(--text-2xl--line-height));
   }
   .text-base {
     font-size: var(--text-base);
@@ -573,9 +570,6 @@
   }
   .text-teal-200 {
     color: var(--color-teal-200);
-  }
-  .text-violet-300 {
-    color: var(--color-violet-300);
   }
   .uppercase {
     text-transform: uppercase;

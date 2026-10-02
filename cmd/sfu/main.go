@@ -37,6 +37,11 @@ func main() {
 		http.ServeFile(w, r, "internal/web/signaling.mjs")
 	})
 
+	serveMux.HandleFunc("GET /media.mjs", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/javascript; charset=utf-8")
+		http.ServeFile(w, r, "internal/web/media.mjs")
+	})
+
 	httpServer := &http.Server{
 		Addr:    ":8080",
 		Handler: serveMux,

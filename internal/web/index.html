@@ -33,24 +33,7 @@
         </div>
 
         <section class="grid grid-cols-2 gap-[18px] min-[1100px]:mx-auto min-[1100px]:max-w-[1120px] max-[600px]:grid-cols-1 max-[600px]:gap-3" aria-label="Participant videos">
-          <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#172338,#0f172a)]">
-            <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
-              <span class="grid size-16 place-items-center rounded-full bg-[#1e3a52] text-2xl text-sky-300" aria-hidden="true">?</span>
-              <p class="mt-3.5 mb-[5px] text-sm text-slate-300">Waiting for participants</p>
-              <span class="text-xs text-slate-500">Room video will appear here.</span>
-            </div>
-            <video class="absolute inset-0 size-full bg-transparent object-contain" id="remote-video" autoplay playsinline controls aria-label="Remote participant video"></video>
-            <div class="pointer-events-none absolute right-4 bottom-3 left-4 flex items-center justify-between text-xs"><span class="rounded-md bg-slate-950/70 px-[9px] py-[5px]">Participant</span><span class="text-[10px] text-slate-400">Remote</span></div>
-          </article>
-
-          <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#172338,#0f172a)]">
-            <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
-              <span class="grid size-16 place-items-center rounded-full bg-[#30284b] text-2xl text-violet-300" aria-hidden="true">?</span>
-              <p class="mt-3.5 mb-[5px] text-sm text-slate-300">A place for someone else</p>
-              <span class="text-xs text-slate-500">Bring everyone together.</span>
-            </div>
-            <div class="pointer-events-none absolute right-4 bottom-3 left-4 flex items-center justify-between text-xs"><span class="rounded-md bg-slate-950/70 px-[9px] py-[5px]">Participant</span><span class="text-[10px] text-slate-400">Remote</span></div>
-          </article>
+          <div id="remote-videos" class="contents"></div>
 
           <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#162a32,#0f172a)]">
             <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
@@ -86,6 +69,20 @@
 
     <script type="module">
       import { createOfferHandler } from "/signaling.mjs";
+      import { createRemoteTrackHandler } from "/media.mjs";
+
+      const remoteVideos = document.querySelector("#remote-videos");
+
+      function createVideo() {
+        const video = document.createElement("video");
+        video.autoplay = true;
+        video.playsInline = true;
+        video.controls = true;
+        video.className =
+          "aspect-video w-full rounded-[18px] border border-slate-800 bg-slate-900 object-contain";
+        video.setAttribute("aria-label", "Remote participant video");
+        return video;
+      }
 
       // wait for ice gathering helper function
       function waitForIceGathering(peerConnection) {
@@ -128,7 +125,7 @@
           peerConnection?.close();
           stream?.getTracks().forEach((track) => track.stop());
           document.querySelector("#local-video").srcObject = null;
-          document.querySelector("#remote-video").srcObject = null;
+          remoteVideos.replaceChildren();
 
           joinButton.disabled = false;
         }
@@ -148,9 +145,10 @@
 
         peerConnection = new RTCPeerConnection();
 
-        peerConnection.ontrack = (event) => {
-          document.querySelector("#remote-video").srcObject = event.streams[0];
-        };
+        peerConnection.ontrack = createRemoteTrackHandler({
+          container: remoteVideos,
+          createVideo,
+        });
 
         for (const track of stream.getTracks()) {
           peerConnection.addTrack(track, stream);
@@ -204,9 +202,10 @@
         peerConnection.addTransceiver("audio", { direction: "recvonly" });
         peerConnection.addTransceiver("video", { direction: "recvonly" });
 
-        peerConnection.ontrack = (event) => {
-          document.querySelector("#remote-video").srcObject = event.streams[0];
-        };
+        peerConnection.ontrack = createRemoteTrackHandler({
+          container: remoteVideos,
+          createVideo,
+        });
 
         // Create viewer's SDP offer and wait for ICE gathering
         const offer = await peerConnection.createOffer();
