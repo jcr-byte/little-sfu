@@ -6,46 +6,82 @@
     <title>Little SFU</title>
     <link rel="stylesheet" href="/styles.css">
   </head>
-  <body class="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased">
-    <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-8 sm:py-8">
-      <header class="flex items-center gap-3 border-b border-slate-800 pb-6">
-        <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 text-sky-300" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-6">
-            <rect x="3" y="6" width="12" height="12" rx="3"></rect>
-            <path d="m15 10 6-3v10l-6-3z" stroke-linejoin="round"></path>
-          </svg>
+  <body class="m-0 bg-slate-950 font-sans text-slate-200">
+    <div class="mx-auto flex min-h-dvh max-w-[1440px] flex-col px-8 max-[600px]:px-4">
+      <header class="flex min-h-24 items-center gap-7 border-b border-slate-800 max-[600px]:min-h-28 max-[600px]:flex-wrap max-[600px]:gap-3 max-[600px]:py-4">
+        <a class="flex items-center gap-3 font-semibold whitespace-nowrap text-slate-50 no-underline" href="/" aria-label="Little SFU home">
+          <span class="grid size-10 place-items-center rounded-xl bg-[#0c2238] text-[28px] text-sky-300" aria-hidden="true">◈</span>
+          <span>Little SFU</span>
+        </a>
+        <div class="border-l border-slate-700 pl-7 max-[600px]:pl-4">
+          <span class="text-[11px] text-slate-400">Room</span>
+          <h1 class="mt-0.5 text-[15px] font-semibold">demo</h1>
         </div>
-        <div>
-          <h1 class="text-lg font-semibold tracking-tight">Little SFU</h1>
-          <p class="text-sm text-slate-400">A little room for conversation.</p>
+        <div class="ml-auto flex items-center gap-5 max-[600px]:basis-full max-[600px]:justify-between">
+          <span class="flex items-center gap-2 text-xs text-slate-400"><span class="size-[7px] rounded-full bg-slate-500" aria-hidden="true"></span>Not connected</span>
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-slate-700 bg-transparent text-slate-200 enabled:hover:bg-slate-700" type="button" disabled title="Copy link is not connected yet">Copy link</button>
         </div>
       </header>
 
-      <main class="flex flex-1 flex-col justify-center py-8 sm:py-12">
-        <div class="mb-6">
-          <p class="mb-2 text-xs font-semibold tracking-widest text-sky-300 uppercase">Your meeting space</p>
-          <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">Bring everyone together.</h2>
-          <p class="mt-2 max-w-xl text-sm leading-6 text-slate-400">Join with your camera and microphone, or watch a broadcast from this room.</p>
+      <main class="flex-1 py-9 max-[600px]:py-6">
+        <div class="mb-6 flex items-end justify-between gap-6 max-[900px]:flex-col max-[900px]:items-start max-[900px]:gap-2.5">
+          <div>
+            <p class="mb-2 text-[10px] font-semibold tracking-[.16em] text-sky-300 uppercase">Your meeting space</p>
+            <h2 class="text-[clamp(20px,3vw,28px)] font-semibold tracking-tight">A little room for conversation.</h2>
+          </div>
+          <p class="text-[13px] text-slate-400">Join with your camera and microphone, or watch.</p>
         </div>
 
-        <section aria-label="Remote video" class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/20">
-          <div class="flex items-center justify-between gap-4 border-b border-slate-800 px-4 py-3 sm:px-6">
-            <h3 class="text-sm font-medium text-slate-300">Room video</h3>
-            <span class="text-xs text-slate-400">Little SFU</span>
-          </div>
-          <video id="remote-video" autoplay playsinline controls aria-label="Remote participant video" class="block aspect-video max-h-[65vh] w-full bg-black object-contain"></video>
+        <section class="grid grid-cols-2 gap-[18px] min-[1100px]:mx-auto min-[1100px]:max-w-[1120px] max-[600px]:grid-cols-1 max-[600px]:gap-3" aria-label="Participant videos">
+          <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#172338,#0f172a)]">
+            <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
+              <span class="grid size-16 place-items-center rounded-full bg-[#1e3a52] text-2xl text-sky-300" aria-hidden="true">?</span>
+              <p class="mt-3.5 mb-[5px] text-sm text-slate-300">Waiting for participants</p>
+              <span class="text-xs text-slate-500">Room video will appear here.</span>
+            </div>
+            <video class="absolute inset-0 size-full bg-transparent object-contain" id="remote-video" autoplay playsinline controls aria-label="Remote participant video"></video>
+            <div class="pointer-events-none absolute right-4 bottom-3 left-4 flex items-center justify-between text-xs"><span class="rounded-md bg-slate-950/70 px-[9px] py-[5px]">Participant</span><span class="text-[10px] text-slate-400">Remote</span></div>
+          </article>
+
+          <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#172338,#0f172a)]">
+            <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
+              <span class="grid size-16 place-items-center rounded-full bg-[#30284b] text-2xl text-violet-300" aria-hidden="true">?</span>
+              <p class="mt-3.5 mb-[5px] text-sm text-slate-300">A place for someone else</p>
+              <span class="text-xs text-slate-500">Bring everyone together.</span>
+            </div>
+            <div class="pointer-events-none absolute right-4 bottom-3 left-4 flex items-center justify-between text-xs"><span class="rounded-md bg-slate-950/70 px-[9px] py-[5px]">Participant</span><span class="text-[10px] text-slate-400">Remote</span></div>
+          </article>
+
+          <article class="relative aspect-video overflow-hidden rounded-[18px] border border-slate-800 bg-[radial-gradient(ellipse_at_center,#162a32,#0f172a)]">
+            <div class="absolute inset-0 flex flex-col items-center justify-center px-5 pt-5 pb-12 text-center">
+              <span class="grid size-16 place-items-center rounded-full bg-[#1b3c42] text-base font-semibold text-teal-200" aria-hidden="true">You</span>
+              <p class="mt-3.5 mb-[5px] text-sm text-slate-300">Your camera preview</p>
+              <span class="text-xs text-slate-500">Join the room to get started.</span>
+            </div>
+            <video class="absolute inset-0 size-full bg-transparent object-contain" id="local-video" autoplay playsinline muted aria-label="Your camera preview"></video>
+            <div class="pointer-events-none absolute right-4 bottom-3 left-4 flex items-center justify-between text-xs"><span class="rounded-md bg-slate-950/70 px-[9px] py-[5px]">You</span><span class="text-[10px] text-slate-400">Local preview</span></div>
+          </article>
         </section>
-
-        <div class="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
-          <p class="max-w-md text-sm leading-6 text-slate-400">Joining asks for camera and microphone access.<br class="hidden sm:block"> Watching only receives audio and video.</p>
-          <div class="flex shrink-0 gap-3">
-            <button id="watch" type="button" class="flex-1 rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-100 transition-colors hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">Watch</button>
-            <button id="join" type="button" class="flex-1 rounded-xl bg-sky-400 px-6 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">Join room</button>
-          </div>
-        </div>
       </main>
 
-      <footer class="text-center text-xs text-slate-500">Built with Pion WebRTC</footer>
+      <footer class="flex items-center justify-between gap-6 border-t border-slate-800 py-6 max-[900px]:flex-wrap max-[600px]:gap-4" aria-label="Call controls">
+        <p class="text-[13px] text-slate-300 max-[900px]:basis-full">You haven’t joined yet.<span class="mt-[5px] block max-w-[270px] text-[11px] leading-[1.6] text-slate-500">Camera and microphone access is requested when you join.</span></p>
+        <div class="flex items-center gap-2.5 max-[600px]:w-full max-[600px]:justify-center">
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-slate-700 bg-slate-800 text-slate-200 enabled:hover:bg-slate-700" type="button" disabled title="Microphone control is not connected yet">
+            <svg class="size-[17px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10v2a7 7 0 0 0 14 0v-2M12 19v3m-4 0h8"/></svg>
+            <span>Mic</span>
+          </button>
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 border-slate-700 bg-slate-800 text-slate-200 enabled:hover:bg-slate-700" type="button" disabled title="Camera control is not connected yet">
+            <svg class="size-[17px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="12" height="14" rx="3"/><path d="m15 10 6-4v12l-6-4z"/></svg>
+            <span>Camera</span>
+          </button>
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-[#673044] bg-[#401b28] text-rose-300" type="button" disabled title="Leave control is not connected yet">Leave</button>
+        </div>
+        <div class="flex items-center gap-2.5 max-[600px]:w-full max-[600px]:justify-center max-[600px]:[&>button]:flex-1">
+          <button id="watch" class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-slate-700 bg-transparent text-slate-200 enabled:hover:bg-slate-700" type="button">Watch</button>
+          <button id="join" class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-sky-400 bg-sky-400 text-sky-950 enabled:hover:bg-sky-300" type="button">Join room</button>
+        </div>
+      </footer>
     </div>
 
     <script type="module">
