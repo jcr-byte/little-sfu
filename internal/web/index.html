@@ -127,6 +127,8 @@
 
           peerConnection?.close();
           stream?.getTracks().forEach((track) => track.stop());
+          document.querySelector("#local-video").srcObject = null;
+          document.querySelector("#remote-video").srcObject = null;
 
           joinButton.disabled = false;
         }
@@ -142,7 +144,13 @@
           video: true,
         });
 
+        document.querySelector("#local-video").srcObject = stream;
+
         peerConnection = new RTCPeerConnection();
+
+        peerConnection.ontrack = (event) => {
+          document.querySelector("#remote-video").srcObject = event.streams[0];
+        };
 
         for (const track of stream.getTracks()) {
           peerConnection.addTrack(track, stream);
