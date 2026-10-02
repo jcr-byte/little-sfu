@@ -24,6 +24,10 @@ func main() {
 		http.ServeFile(w, r, "internal/web/index.html")
 	})
 
+	serveMux.HandleFunc("GET /styles.css", func(w http.ResponseWriter, r *http.Request) {
+		http.ServeFile(w, r, "internal/web/styles.css")
+	})
+
 	serveMux.HandleFunc("POST /publish/{room}", server.PublishHandler)
 	serveMux.HandleFunc("POST /watch/{room}", server.WatchHandler)
 	serveMux.HandleFunc("GET /join/{room}", server.JoinHandler)

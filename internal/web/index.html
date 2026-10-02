@@ -4,14 +4,49 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Little SFU</title>
+    <link rel="stylesheet" href="/styles.css">
   </head>
-  <body>
-    <h1>Little SFU</h1>
-    <p>The server is running.</p>
+  <body class="min-h-screen bg-slate-950 font-sans text-slate-100 antialiased">
+    <div class="mx-auto flex min-h-screen max-w-7xl flex-col px-4 py-6 sm:px-8 sm:py-8">
+      <header class="flex items-center gap-3 border-b border-slate-800 pb-6">
+        <div class="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-sky-400/10 text-sky-300" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" class="size-6">
+            <rect x="3" y="6" width="12" height="12" rx="3"></rect>
+            <path d="m15 10 6-3v10l-6-3z" stroke-linejoin="round"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="text-lg font-semibold tracking-tight">Little SFU</h1>
+          <p class="text-sm text-slate-400">A little room for conversation.</p>
+        </div>
+      </header>
 
-    <button id="join">Join</button>
-    <button id="watch">Watch</button>
-    <video id="remote-video" autoplay playsinline controls></video>
+      <main class="flex flex-1 flex-col justify-center py-8 sm:py-12">
+        <div class="mb-6">
+          <p class="mb-2 text-xs font-semibold tracking-widest text-sky-300 uppercase">Your meeting space</p>
+          <h2 class="text-2xl font-semibold tracking-tight sm:text-3xl">Bring everyone together.</h2>
+          <p class="mt-2 max-w-xl text-sm leading-6 text-slate-400">Join with your camera and microphone, or watch a broadcast from this room.</p>
+        </div>
+
+        <section aria-label="Remote video" class="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-2xl shadow-black/20">
+          <div class="flex items-center justify-between gap-4 border-b border-slate-800 px-4 py-3 sm:px-6">
+            <h3 class="text-sm font-medium text-slate-300">Room video</h3>
+            <span class="text-xs text-slate-400">Little SFU</span>
+          </div>
+          <video id="remote-video" autoplay playsinline controls aria-label="Remote participant video" class="block aspect-video max-h-[65vh] w-full bg-black object-contain"></video>
+        </section>
+
+        <div class="mt-5 flex flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900/60 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5">
+          <p class="max-w-md text-sm leading-6 text-slate-400">Joining asks for camera and microphone access.<br class="hidden sm:block"> Watching only receives audio and video.</p>
+          <div class="flex shrink-0 gap-3">
+            <button id="watch" type="button" class="flex-1 rounded-xl border border-slate-700 bg-slate-800 px-6 py-3 text-sm font-semibold text-slate-100 transition-colors hover:bg-slate-700 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">Watch</button>
+            <button id="join" type="button" class="flex-1 rounded-xl bg-sky-400 px-6 py-3 text-sm font-semibold text-slate-950 transition-colors hover:bg-sky-300 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:cursor-not-allowed disabled:opacity-50 sm:flex-none">Join room</button>
+          </div>
+        </div>
+      </main>
+
+      <footer class="text-center text-xs text-slate-500">Built with Pion WebRTC</footer>
+    </div>
 
     <script type="module">
       import { createOfferHandler } from "/signaling.mjs";

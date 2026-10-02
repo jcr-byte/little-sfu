@@ -1,0 +1,25 @@
+{
+  "name": "little-sfu",
+  "version": "1.0.0",
+  "description": "A small selective forwarding unit built from scratch with [Pion WebRTC](https://github.com/pion/webrtc). This project is intended to teach WebRTC signaling, RTP/RTCP forwarding, media negotiation, and peer lifecycle management.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jcr-byte/little-sfu.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/jcr-byte/little-sfu/issues"
+  },
+  "homepage": "https://github.com/jcr-byte/little-sfu#readme",
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.3",
+    "tailwindcss": "^4.3.3"
+  }
+}
