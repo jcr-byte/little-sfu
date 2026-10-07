@@ -58,10 +58,9 @@
             <svg class="size-[17px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="12" height="14" rx="3"/><path d="m15 10 6-4v12l-6-4z"/></svg>
             <span>Camera</span>
           </button>
-          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-[#673044] bg-[#401b28] text-rose-300" type="button" disabled title="Leave control is not connected yet">Leave</button>
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-[#673044] bg-[#401b28] text-rose-300" type="button" id="leave" disabled title="Leave control is not connected yet">Leave</button>
         </div>
         <div class="flex items-center gap-2.5 max-[600px]:w-full max-[600px]:justify-center max-[600px]:[&>button]:flex-1">
-          <button id="watch" class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-slate-700 bg-transparent text-slate-200 enabled:hover:bg-slate-700" type="button">Watch</button>
           <button id="join" class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-sky-400 bg-sky-400 text-sky-950 enabled:hover:bg-sky-300" type="button">Join room</button>
         </div>
       </footer>
@@ -106,33 +105,39 @@
         });
       }
 
+      let stream;
+      let peerConnection;
+      let socket;
+      
+      // cleanup function 
+      function cleanup() {
+        if (socket) {
+          socket.onclose = null;
+          socket.close();
+        }
+
+        peerConnection?.close();
+        stream?.getTracks().forEach((track) => track.stop());
+        document.querySelector("#local-video").srcObject = null;
+        remoteVideos.replaceChildren();
+
+        joinButton.disabled = false;
+        leaveButton.disabled = true;
+      }
+
       // join button handler
       const joinButton = document.querySelector("#join");
+      const leaveButton = document.querySelector("#leave");
 
       joinButton.addEventListener("click", async () => {
         joinButton.disabled = true;
+        leaveButton.disabled = false;
         
-        let stream;
-        let peerConnection;
-        let socket;
 
-        function cleanup() {
-          if (socket) {
-            socket.onclose = null;
-            socket.close();
-          }
-
-          peerConnection?.close();
-          stream?.getTracks().forEach((track) => track.stop());
-          document.querySelector("#local-video").srcObject = null;
-          remoteVideos.replaceChildren();
-
-          joinButton.disabled = false;
-        }
 
         function fail(error) {
           console.error("Join failed:", error);
-          cleanup()
+          cleanup();
         }
         
       try {
@@ -144,6 +149,13 @@
         document.querySelector("#local-video").srcObject = stream;
 
         peerConnection = new RTCPeerConnection();
+
+        peerConnection.addEventListener("connectionstatechange", () => {
+          const state = peerConnection.connectionState;
+          if (state === "failed") {
+            fail(new Error("WebRTC connection failed"));
+          };
+        })
 
         peerConnection.ontrack = createRemoteTrackHandler({
           container: remoteVideos,
@@ -193,40 +205,11 @@
       }
     });
 
-      // watch button handler
-      document.querySelector("#watch").addEventListener("click", async () => {
-        // init new peer connection for viewer
-        const peerConnection = new RTCPeerConnection();
-
-        // add video and audio transceivers
-        peerConnection.addTransceiver("audio", { direction: "recvonly" });
-        peerConnection.addTransceiver("video", { direction: "recvonly" });
-
-        peerConnection.ontrack = createRemoteTrackHandler({
-          container: remoteVideos,
-          createVideo,
-        });
-
-        // Create viewer's SDP offer and wait for ICE gathering
-        const offer = await peerConnection.createOffer();
-        await peerConnection.setLocalDescription(offer);
-        await waitForIceGathering(peerConnection);
-
-        console.log(peerConnection.localDescription);
-
-        const roomID = new URLSearchParams(location.search).get("room") || "demo";
-        const body = JSON.stringify(peerConnection.localDescription)
-        
-        const res = await fetch(`/watch/${roomID}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: body
-        });
-
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
-        const data = await res.json();
-        await peerConnection.setRemoteDescription(data);
+      // leave button handler
+      leaveButton.addEventListener("click", () => {
+        cleanup();
       });
+
     </script>
   </body>
 </html>
