@@ -9,8 +9,8 @@ test("two remote streams play in separate video elements", () => {
       this.children.push(element);
     },
   };
-  const firstStream = { id: "participant-a" };
-  const secondStream = { id: "participant-b" };
+  const firstStream = createStream("participant-a");
+  const secondStream = createStream("participant-b");
   const handleTrack = createRemoteTrackHandler({
     container,
     createVideo: () => ({ srcObject: null }),
@@ -33,7 +33,7 @@ test("audio and video from one stream share one video element", () => {
     }
   }
 
-  const stream = { id: "participant-a" };
+  const stream = createStream("participant-a");
 
   const handleTrack = createRemoteTrackHandler({
     container,
@@ -61,4 +61,52 @@ test("audio and video from one stream share one video element", () => {
     stream,
     "the video element should display the received stream",
   );
+});
+
+function createStream(id) {
+  const stream = new EventTarget();
+  stream.id = id;
+  stream.tracks = [{ kind: "audio" }, { kind: "video" }];
+  stream.getTracks = () => stream.tracks;
+  stream.removeNextTrack = () => {
+    stream.tracks.shift();
+    stream.dispatchEvent(new Event("removetrack"));
+  };
+  return stream;
+}
+
+test("departure removes only the empty stream's tile and allows it to return", () => {
+  const container = {
+    children: [],
+    appendChild(video) {
+      this.children.push(video);
+    },
+  };
+  const handleTrack = createRemoteTrackHandler({
+    container,
+    createVideo: () => ({
+      srcObject: null,
+      remove() {
+        container.children.splice(container.children.indexOf(this), 1);
+      },
+    }),
+  });
+  const departing = createStream("departing");
+  const remaining = createStream("remaining");
+  handleTrack({ streams: [departing] });
+  handleTrack({ streams: [remaining] });
+  const departedVideo = container.children[0];
+  const remainingVideo = container.children[1];
+
+  departing.removeNextTrack();
+  assert.equal(container.children.length, 2, "keep the tile while audio or video remains");
+  departing.removeNextTrack();
+  assert.deepEqual(container.children, [remainingVideo], "preserve other participants' tiles");
+  assert.equal(departedVideo.srcObject, null, "release the departed stream");
+
+  const returning = createStream("departing");
+  handleTrack({ streams: [returning] });
+  departing.dispatchEvent(new Event("removetrack"));
+  assert.equal(container.children.length, 2, "old events must not remove another tile");
+  assert.equal(container.children[1].srcObject, returning, "a returning stream gets a new tile");
 });

@@ -11,5 +11,18 @@ export function createRemoteTrackHandler({ container, createVideo }) {
     newVideo.srcObject = stream;
     container.appendChild(newVideo);
     videos.set(stream.id, newVideo);
+
+    function removeEmptyStream() {
+      if (stream.getTracks().length !== 0) {
+        return;
+      }
+
+      stream.removeEventListener("removetrack", removeEmptyStream);
+      newVideo.srcObject = null;
+      newVideo.remove();
+      videos.delete(stream.id);
+    }
+
+    stream.addEventListener("removetrack", removeEmptyStream);
   };
 }
