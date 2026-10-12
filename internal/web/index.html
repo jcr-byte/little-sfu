@@ -58,7 +58,7 @@
             <svg class="size-[17px] fill-none stroke-current stroke-[1.7] [stroke-linecap:round] [stroke-linejoin:round]" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="12" height="14" rx="3"/><path d="m15 10 6-4v12l-6-4z"/></svg>
             <span>Camera</span>
           </button>
-          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-[#673044] bg-[#401b28] text-rose-300" type="button" id="leave" disabled title="Leave control is not connected yet">Leave</button>
+          <button class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-[#673044] bg-[#401b28] text-rose-300" type="button" id="leave" disabled title="Leave room">Leave</button>
         </div>
         <div class="flex items-center gap-2.5 max-[600px]:w-full max-[600px]:justify-center max-[600px]:[&>button]:flex-1">
           <button id="join" class="rounded-[10px] border px-[17px] py-[11px] text-xs font-semibold whitespace-nowrap cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-sky-300 disabled:opacity-50 disabled:cursor-not-allowed border-sky-400 bg-sky-400 text-sky-950 enabled:hover:bg-sky-300" type="button">Join room</button>
@@ -108,9 +108,11 @@
       let stream;
       let peerConnection;
       let socket;
+      let activeJoinAttempt;
       
       // cleanup function 
       function cleanup() {
+        activeJoinAttempt = undefined;
         if (socket) {
           socket.onclose = null;
           socket.close();
@@ -118,6 +120,9 @@
 
         peerConnection?.close();
         stream?.getTracks().forEach((track) => track.stop());
+        socket = undefined;
+        peerConnection = undefined;
+        stream = undefined;
         document.querySelector("#local-video").srcObject = null;
         remoteVideos.replaceChildren();
 
@@ -130,61 +135,80 @@
       const leaveButton = document.querySelector("#leave");
 
       joinButton.addEventListener("click", async () => {
+        if (activeJoinAttempt) return;
+        const attempt = {};
+        activeJoinAttempt = attempt;
+        const isActive = () => activeJoinAttempt === attempt;
         joinButton.disabled = true;
         leaveButton.disabled = false;
         
 
 
         function fail(error) {
+          if (!isActive()) return;
           console.error("Join failed:", error);
           cleanup();
         }
         
       try {
-        stream = await navigator.mediaDevices.getUserMedia({
+        const acquiredStream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: true,
         });
 
+        // Permission may resolve after Leave or a subsequent Join.
+        if (!isActive()) {
+          acquiredStream.getTracks().forEach((track) => track.stop());
+          return;
+        }
+        stream = acquiredStream;
         document.querySelector("#local-video").srcObject = stream;
 
-        peerConnection = new RTCPeerConnection();
+        const pc = new RTCPeerConnection();
+        peerConnection = pc;
 
-        peerConnection.addEventListener("connectionstatechange", () => {
-          const state = peerConnection.connectionState;
+        pc.addEventListener("connectionstatechange", () => {
+          if (!isActive()) return;
+          const state = pc.connectionState;
           if (state === "failed") {
             fail(new Error("WebRTC connection failed"));
           };
         })
 
-        peerConnection.ontrack = createRemoteTrackHandler({
+        const handleTrack = createRemoteTrackHandler({
           container: remoteVideos,
           createVideo,
         });
+        pc.ontrack = (event) => {
+          if (isActive()) handleTrack(event);
+        };
 
         for (const track of stream.getTracks()) {
-          peerConnection.addTrack(track, stream);
+          pc.addTrack(track, stream);
         }
 
         const roomID = new URLSearchParams(location.search).get("room") || "demo";
 
         const url = new URL(`/join/${encodeURIComponent(roomID)}`, location.href);
         url.protocol = location.protocol === "https:" ? "wss:" : "ws:";
-        socket = new WebSocket(url);
+        const signalingSocket = new WebSocket(url);
+        socket = signalingSocket;
 
         const handleOffer = createOfferHandler({
-          pc: peerConnection,
+          pc,
           waitForIceGathering,
           sendAnswer(answer) {
-            if (socket.readyState != WebSocket.OPEN) {
+            if (!isActive()) return;
+            if (signalingSocket.readyState !== WebSocket.OPEN) {
               throw new Error("Signaling connection is closed");
             }
 
-            socket.send(JSON.stringify(answer));
+            signalingSocket.send(JSON.stringify(answer));
           },
         });
 
-        socket.onmessage = async (event) => {
+        signalingSocket.onmessage = async (event) => {
+          if (!isActive()) return;
           try {
             const offer = JSON.parse(event.data);
 
@@ -198,8 +222,10 @@
           }
         };
 
-        socket.onerror = () => fail(new Error("WebSocket connection failed"));
-        socket.onclose = cleanup;
+        signalingSocket.onerror = () => fail(new Error("WebSocket connection failed"));
+        signalingSocket.onclose = () => {
+          if (isActive()) cleanup();
+        };
       } catch (error) {
         fail(error);
       }
